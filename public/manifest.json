@@ -1,0 +1,38 @@
+{
+    "name": "CLSU Moto-Track Driver",
+    "short_name": "Moto-Track",
+    "description": "Driver companion app for the CLSU Motorpool Information System \u2014 view trip tickets, share live GPS location, and track trips on the road.",
+    "id": "/driver/dashboard",
+    "start_url": "/driver/dashboard",
+    "scope": "/driver/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#f0fdf4",
+    "theme_color": "#1e6031",
+    "icons": [
+        {
+            "src": "/images/pwa/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/images/pwa/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/images/pwa/icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/images/pwa/icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

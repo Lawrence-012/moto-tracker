@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('officers', function (Blueprint $table) {
+            // Add column to store the office_id where the officer serves
+            $table->unsignedBigInteger('office_id')->nullable()->after('employee_id');
+            
+            // Add foreign key constraint
+            $table->foreign('office_id')->references('id')->on('offices')->onDelete('set null');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('officers', function (Blueprint $table) {
+            $table->dropForeign(['office_id']);
+            $table->dropColumn('office_id');
+        });
+    }
+};
