@@ -185,6 +185,39 @@
                         @enderror
                     </div>
 
+                    <!-- Oil change interval (shown when the work is an oil change) -->
+                    <div id="oil-interval-wrap" class="mt-6" style="display:none;">
+                        <label class="mn-section-label">Oil Change Interval</label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div>
+                                <label for="oil_interval_km" class="text-xs font-semibold text-gray-600">Good for (km)</label>
+                                <select name="oil_interval_km" id="oil_interval_km" class="mn-select">
+                                    <option value="">Select</option>
+                                    <option value="5000" {{ old('oil_interval_km') == '5000' ? 'selected' : '' }}>5,000 km</option>
+                                    <option value="10000" {{ old('oil_interval_km') == '10000' ? 'selected' : '' }}>10,000 km</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="oil_interval_months" class="text-xs font-semibold text-gray-600">Or good for (months)</label>
+                                <select name="oil_interval_months" id="oil_interval_months" class="mn-select">
+                                    <option value="">Select</option>
+                                    <option value="3" {{ old('oil_interval_months') == '3' ? 'selected' : '' }}>3 months</option>
+                                    <option value="6" {{ old('oil_interval_months') == '6' ? 'selected' : '' }}>6 months</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">The oil alert appears when either limit is reached.</p>
+                    </div>
+
+                    <!-- Remarks -->
+                    <div class="mt-6">
+                        <label for="remarks" class="mn-section-label">Remarks</label>
+                        <textarea name="remarks" id="remarks" rows="3" class="mn-textarea">{{ old('remarks') }}</textarea>
+                        @error('remarks')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <!-- Materials/Parts -->
                     <div class="mt-6">
                         <div class="flex items-center justify-between mb-2">
@@ -223,6 +256,19 @@
     </div>
 </div>
 
+<script>
+// Show the oil interval options only when the work is an oil change.
+(function () {
+    const nature = document.getElementById('nature_of_work');
+    const wrap = document.getElementById('oil-interval-wrap');
+    function toggleOil() {
+        const t = (nature.value || '').toLowerCase();
+        wrap.style.display = (t.includes('change oil') || t.includes('oil change')) ? '' : 'none';
+    }
+    nature.addEventListener('input', toggleOil);
+    toggleOil();
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Add material button

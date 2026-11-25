@@ -107,6 +107,10 @@ class VehicleController extends Controller
         ]);
 
         $data = $request->except('picture');
+
+        // The starting odometer is the car's existing reading. Count maintenance from it,
+        // so km since service starts at 0 and maintenance is due only after 5,000 km of new travel.
+        $data['last_maintenance_mileage'] = (int) ($data['mileage'] ?? 0);
         
         if ($request->hasFile('picture')) {
             // Store the image in the public directory

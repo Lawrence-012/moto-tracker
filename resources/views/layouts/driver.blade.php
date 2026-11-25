@@ -177,25 +177,24 @@
     <!-- Fixed Bottom Navigation Bar -->
     <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
         <div class="max-w-md mx-auto flex items-center justify-around px-3 py-2.5">
-            <!-- Trips Navigation -->
+            <!-- Trips Navigation
             <a href="{{ route('driver.trips') }}"
                class="flex-1 mx-1 text-center py-2 rounded-full text-xs font-semibold {{ request()->routeIs('driver.trips') ? 'text-white font-bold' : 'text-gray-600 border border-gray-300' }}"
                style="{{ request()->routeIs('driver.trips') ? 'background:#1e6031;' : '' }}">
                 🚐 Trips
-            </a>
+            </a> -->
 
-            <!-- Schedule Navigation -->
+            <!-- Schedule Navigation
             <a href="{{ route('driver.dashboard') }}"
                class="flex-1 mx-1 text-center py-2 rounded-full text-xs font-semibold {{ request()->routeIs('driver.dashboard') ? 'text-white font-bold' : 'text-gray-600 border border-gray-300' }}"
                style="{{ request()->routeIs('driver.dashboard') ? 'background:#1e6031;' : '' }}">
                 📅 Schedule of Trips
-            </a>
+            </a> -->
 
         </div>
     </div>
 
     <!-- Driver Location Tracker Partial -->
-    @include('partials.driver-location-tracker')
 
     <!-- Automated Location Off Handler on Logout -->
     <script>

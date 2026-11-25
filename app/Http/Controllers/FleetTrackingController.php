@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Driver;
 use App\Models\DriverLocation;
+use App\Models\Dashcam;
 use App\Models\TripTicket;
 use App\Models\TripTicketLocation;
 use App\Services\GeofenceService;
@@ -133,6 +134,8 @@ class FleetTrackingController extends Controller
      */
     public function updateLocation(Request $request): JsonResponse
     {
+        // Location now comes from the dashcam. Driver app location is ignored.
+        return response()->json(['success' => true, 'message' => 'Location is sent by the dashcam.']);
         $request->validate([
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
@@ -156,6 +159,20 @@ class FleetTrackingController extends Controller
         $accuracy = $request->input('accuracy');
         $heading = $request->input('heading');
 
+        return $this->processGpsFix($driver, $lat, $lng, $speed, $accuracy, $heading);
+    }
+
+    /**
+     * Shared trip logic. Runs for the driver app and for dashcam GPS.
+     */
+    public function processGpsFix(
+        Driver $driver,
+        float $lat,
+        float $lng,
+        $speed = null,
+        $accuracy = null,
+        $heading = null
+    ): JsonResponse {
         /*
         |--------------------------------------------------------------------------
         | Determine current gate status
@@ -296,7 +313,21 @@ class FleetTrackingController extends Controller
             $candidate = $approvedTicket
                 ?: $this->findTodaysApprovedTrip($driver);
 
+            if (!$candidate) {
+                Log::info('Main Gate reached but no approved trip found for this driver today.', [
+                    'driver_id' => $driver->id,
+                ]);
+            }
+
             if ($candidate) {
+                // Fallback: if the Motorpool Gate baseline was missed, set it now from the vehicle's odometer
+                if ($candidate->odometer_start_km === null) {
+                    $baselined = $this->initializeMotorpoolOdometer($driver, $lat, $lng);
+                    if ($baselined) {
+                        $candidate = $baselined;
+                    }
+                }
+
                 $startedTicket = $this->tryAutoStartTrip(
                     $driver,
                     $candidate,
@@ -372,12 +403,11 @@ class FleetTrackingController extends Controller
             /*
             |--------------------------------------------------------------------------
             | STEP 5
-            | MAIN GATE RETURN -> MOTORPOOL GATE -> COMPLETE
+            | MAIN GATE RETURN -> COMPLETE
             |--------------------------------------------------------------------------
             */
 
             if (
-                $atMotorpoolGate &&
                 $returnedThroughMainGate &&
                 $this->canAutoCompleteTrip($activeTicket)
             ) {
@@ -1472,12 +1502,52 @@ class FleetTrackingController extends Controller
             })
             ->values();
 
+        // Which trip each vehicle is on right now (trip tickets that are On-Going).
+        $tripByVehicle = TripTicket::with('itinerary.vehicle', 'itinerary.driver')
+            ->where('status', 'On-Going')
+            ->get()
+            ->filter(fn (TripTicket $t) => $t->itinerary && $t->itinerary->vehicle_id)
+            ->mapWithKeys(fn (TripTicket $t) => [
+                $t->itinerary->vehicle_id => [
+                    'ticket_number' => $t->ticket_number,
+                    'destination' => $t->itinerary->destination,
+                    'driver' => $t->itinerary->driver?->full_name,
+                    'departed_at' => optional($t->actual_departure_at)->toIso8601String(),
+                ],
+            ]);
+
+        // Registered dashcams: live position, speed and odometer straight from the vehicle.
+        $dashcams = Dashcam::with('vehicle')
+            ->whereNotNull('vehicle_id')
+            ->get()
+            ->map(function (Dashcam $d) use ($tripByVehicle) {
+                return [
+                    'dashcam_id' => $d->id,
+                    'plate_number' => $d->vehicle->plate_number ?? 'N/A',
+                    'vehicle' => trim(($d->vehicle->model ?? '') . ' (' . ($d->vehicle->plate_number ?? 'N/A') . ')'),
+                    'latitude' => $d->last_latitude !== null ? (float) $d->last_latitude : null,
+                    'longitude' => $d->last_longitude !== null ? (float) $d->last_longitude : null,
+                    'speed_kph' => $d->last_speed_kph !== null ? (float) $d->last_speed_kph : null,
+                    'odometer_km' => $d->currentOdometerKm(),
+                    'last_update' => optional($d->last_seen_at)->toIso8601String(),
+                    'online' => $d->is_online,
+                    'trip' => $tripByVehicle[$d->vehicle_id] ?? null,
+                    'gps_at' => optional($d->last_gps_at)->toIso8601String(),
+                    'gps_live' => $d->gpsLive(),
+                ];
+            })
+            ->values();
+
+        // Vehicle monitoring only: driver positions are no longer shown.
         return response()->json([
             'ongoing' =>
-                $ongoing,
+                [],
 
             'idle' =>
-                $idle,
+                [],
+
+            'dashcams' =>
+                $dashcams,
 
             'location_alerts' =>
                 $locationAlerts,
@@ -1541,6 +1611,7 @@ class FleetTrackingController extends Controller
                 ->get([
                     'latitude',
                     'longitude',
+                    'speed_kph',
                     'recorded_at'
                 ]);
 

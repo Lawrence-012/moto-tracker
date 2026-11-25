@@ -46,7 +46,7 @@
 
                 <!-- Generate PDF Button -->
                <div class="flex justify-end mb-2">
-               <button id="generatePDFBtn" class="inline-flex items-center px-2 py-1 bg-red-600 border border-red-600 rounded text-xs text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150" style="padding: 4px 8px; font-size: 0.80rem;">
+               <button id="generatePDFBtn" class="inline-flex items-center px-3 py-1.5 bg-red-600 border border-red-600 rounded-md font-semibold text-xs text-white uppercase tracking-wider hover:bg-red-700 transition">
                 <i class="fas fa-file-pdf mr-1 text-xs"></i> Generate PDF
             </button>
                </div>

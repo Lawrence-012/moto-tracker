@@ -1,7 +1,8 @@
 @extends('layouts.motorpool-admin')
 
 @section('content')
-@include('partials.google-maps-script')
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <div class="py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -398,23 +399,6 @@
                                                         $isToday = $dateFrom->isSameDay($today);
                                                     }
                                                 @endphp
-                                                @if($isToday)
-                                                    <button type="button" 
-                                                            class="btn btn-success inline-flex items-center justify-center"
-                                                            title="Start Trip"
-                                                            onclick="startTrip({{ $ticket->id }})"
-                                                            style="background-color: #1e6031; color: white;">
-                                                        <i class="fas fa-play"></i> Start
-                                                    </button>
-                                                @else
-                                                    <button type="button" 
-                                                            class="btn btn-secondary inline-flex items-center justify-center cursor-not-allowed opacity-50"
-                                                            title="Start trip available only on departure date"
-                                                            disabled
-                                                            style="background-color: #6c757d; color: white; cursor: not-allowed; opacity: 0.5;">
-                                                        <i class="fas fa-play"></i> Start
-                                                    </button>
-                                                @endif
                                                 <button type="button" 
                                                         class="btn btn-danger inline-flex items-center justify-center"
                                                         title="Cancel Trip Ticket"
@@ -1975,6 +1959,14 @@ function showTripTicketDetails(ticketId) {
                                     </td>
                                 </tr>
                                 <tr>
+                                    <td class="font-semibold text-gray-700 py-0.5 align-top">Actual Departure:</td>
+                                    <td class="text-gray-900 py-0.5 align-top">${formatManila(ticket.actual_departure_at)}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-semibold text-gray-700 py-0.5 align-top">Actual Arrival:</td>
+                                    <td class="text-gray-900 py-0.5 align-top">${formatManila(ticket.actual_arrival_at)}</td>
+                                </tr>
+                                <tr>
                                     <td class="font-semibold text-gray-700 py-0.5 align-top">Destination:</td>
                                     <td class="text-gray-900 py-0.5 align-top whitespace-pre-wrap">${(ticket.itinerary && ticket.itinerary.destination) ? ticket.itinerary.destination.trim() : '<span class="text-gray-500">N/A</span>'}</td>
                                 </tr>
@@ -2081,16 +2073,15 @@ function showTripTicketDetails(ticketId) {
         });
 }
 
-/**
- * Renders the right-hand map panel inside the Trip Ticket Details modal.
- * - Completed trips: draw the actual recorded GPS breadcrumb trail.
- * - On-Going trips: show the driver's live position, reverse-geocoded
- *   into a place name, plus a driving route + ETA to the destination
- *   (geocoded from the free-text destination field).
- * - Otherwise: a friendly placeholder.
- */
 const tripTrailUrlTemplate = @json(route('api.trip-tickets.trail', ['id' => '__ID__']));
 
+/**
+ * Renders the right-hand map panel inside the Trip Ticket Details modal.
+ * Uses Leaflet with OpenStreetMap tiles (no Google Maps).
+ * - Completed trips: draw the recorded GPS breadcrumb trail.
+ * - On-Going trips: driver's live position, place name (Nominatim), and
+ *   a road route + distance to the destination (OSRM).
+ */
 function renderTripTicketMap(ticket) {
     const mapPanel = document.getElementById('tripTicketMapPanel');
     const mapColumn = document.getElementById('tripTicketMapColumn');
@@ -2102,10 +2093,7 @@ function renderTripTicketMap(ticket) {
     const driverLocation = (ticket.itinerary && ticket.itinerary.driver) ? ticket.itinerary.driver.location : null;
     const destinationText = ticket.itinerary ? ticket.itinerary.destination : null;
 
-    // Only Completed and On-Going trips have anything meaningful to show on
-    // a map - for Pending/Approved/Cancelled, drop the map column entirely
-    // and let the details take the full modal width instead of showing an
-    // empty placeholder panel.
+    // Only Completed and On-Going trips show a map column.
     const showMapColumn = (status === 'Completed' || status === 'On-Going');
 
     if (showMapColumn) {
@@ -2121,13 +2109,8 @@ function renderTripTicketMap(ticket) {
         return;
     }
 
-    if (window.GOOGLE_MAPS_KEY_MISSING) {
-        mapPanel.innerHTML = mapPlaceholder('Google Maps API key not configured yet. Add GOOGLE_MAPS_API_KEY to your .env file.', 'fa-map-location-dot');
-        return;
-    }
-
     if (status === 'Completed') {
-        renderCompletedRouteMap(ticket, mapPanel);
+        tripRouteMapV2(ticket, mapPanel);
     } else if (status === 'On-Going' && driverLocation) {
         const destinationCoords = (ticket.itinerary && ticket.itinerary.destination_latitude && ticket.itinerary.destination_longitude)
             ? { lat: parseFloat(ticket.itinerary.destination_latitude), lng: parseFloat(ticket.itinerary.destination_longitude) }
@@ -2139,41 +2122,30 @@ function renderTripTicketMap(ticket) {
 }
 
 function initTicketMap(containerId) {
-    return new google.maps.Map(document.getElementById(containerId), {
-        mapTypeControl: true,
-        mapTypeControlOptions: {
-            style: google.maps.MapTypeControlStyle.HORIZONTAL_BAR,
-            position: google.maps.ControlPosition.TOP_RIGHT,
-        },
-        streetViewControl: false,
-        fullscreenControl: false,
-        zoom: 13,
+    const map = L.map(containerId, { zoomControl: true }).setView([15.4, 120.9], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    return map;
+}
+
+function tripBusIconV2() {
+    return L.divIcon({
+        className: '',
+        html: '<div style="width:32px;height:32px;border-radius:50%;background:#1e6031;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:15px;">&#128652;</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
     });
 }
 
-function busIconObj(scale) {
-    scale = scale || 32;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${scale}" height="${scale}" viewBox="0 0 32 32">
-        <circle cx="16" cy="16" r="14" fill="#1e6031" stroke="white" stroke-width="3"/>
-        <text x="16" y="21" font-size="15" text-anchor="middle">\uD83D\uDE8C</text>
-    </svg>`;
-    return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-        scaledSize: new google.maps.Size(scale, scale),
-        anchor: new google.maps.Point(scale / 2, scale / 2),
-    };
-}
-
-function pinIconObj(color) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="36" viewBox="0 0 30 36">
-        <path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 21 15 21s15-9.8 15-21C30 6.7 23.3 0 15 0z" fill="${color || '#b91c1c'}"/>
-        <circle cx="15" cy="15" r="6" fill="white"/>
-    </svg>`;
-    return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-        scaledSize: new google.maps.Size(30, 36),
-        anchor: new google.maps.Point(15, 36),
-    };
+function tripPinIconV2(color) {
+    return L.divIcon({
+        className: '',
+        html: `<svg width="30" height="36" viewBox="0 0 30 36"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 21 15 21s15-9.8 15-21C30 6.7 23.3 0 15 0z" fill="${color || '#b91c1c'}"/><circle cx="15" cy="15" r="6" fill="white"/></svg>`,
+        iconSize: [30, 36],
+        iconAnchor: [15, 36]
+    });
 }
 
 function mapPlaceholder(message, icon) {
@@ -2181,6 +2153,27 @@ function mapPlaceholder(message, icon) {
         <i class="fas ${icon || 'fa-map-marked-alt'} text-4xl mb-3 text-gray-300"></i>
         ${message}
     </div>`;
+}
+
+function formatManila(value) {
+    if (!value) return '<span class="text-gray-500">N/A</span>';
+    const d = new Date(value);
+    if (isNaN(d)) return value;
+    return d.toLocaleString('en-PH', {
+        timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    });
+}
+
+function nearestPointIndex(points, latlng) {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < points.length; i++) {
+        const dLat = points[i][0] - latlng.lat;
+        const dLng = points[i][1] - latlng.lng;
+        const d = dLat * dLat + dLng * dLng;
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
@@ -2192,10 +2185,10 @@ function haversineKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function renderCompletedRouteMap(ticket, mapPanel) {
+function tripRouteMapV2(ticket, mapPanel) {
     mapPanel.innerHTML = `
         <div id="ticket-detail-map" class="h-full w-full" style="background:#f3f4f6;"></div>
-        <div id="ticket-detail-summary" class="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 shadow-lg rounded-lg px-4 py-2 text-xs text-gray-600 hidden"></div>
+        <div id="ticket-detail-summary" class="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 shadow-lg rounded-lg px-4 py-2 text-xs text-gray-600 hidden" style="z-index:500;"></div>
     `;
 
     setTimeout(() => {
@@ -2204,38 +2197,81 @@ function renderCompletedRouteMap(ticket, mapPanel) {
         fetch(tripTrailUrlTemplate.replace('__ID__', ticket.id))
             .then(r => r.json())
             .then(data => {
-                const points = (data.points || []).map(p => ({ lat: parseFloat(p.latitude), lng: parseFloat(p.longitude) }));
+                const raw = data.points || [];
+                const points = raw.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
 
                 if (points.length === 0) {
                     const start = (ticket.start_latitude && ticket.start_longitude)
-                        ? { lat: parseFloat(ticket.start_latitude), lng: parseFloat(ticket.start_longitude) } : null;
+                        ? [parseFloat(ticket.start_latitude), parseFloat(ticket.start_longitude)] : null;
                     const end = (ticket.end_latitude && ticket.end_longitude)
-                        ? { lat: parseFloat(ticket.end_latitude), lng: parseFloat(ticket.end_longitude) } : null;
+                        ? [parseFloat(ticket.end_latitude), parseFloat(ticket.end_longitude)] : null;
 
                     if (start && end) {
-                        new google.maps.Marker({ position: start, map: map, icon: busIconObj() });
-                        new google.maps.Marker({ position: end, map: map, icon: pinIconObj('#b91c1c') });
-                        new google.maps.Polyline({
-                            path: [start, end], map: map,
-                            strokeOpacity: 0,
-                            icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#1e6031', scale: 3 }, offset: '0', repeat: '12px' }],
-                        });
-                        const bounds = new google.maps.LatLngBounds();
-                        bounds.extend(start); bounds.extend(end);
-                        map.fitBounds(bounds, 30);
+                        L.marker(start, { icon: tripBusIconV2() }).addTo(map);
+                        L.marker(end, { icon: tripPinIconV2('#b91c1c') }).addTo(map);
+                        L.polyline([start, end], { color: '#1e6031', weight: 4, dashArray: '6,8' }).addTo(map);
+                        map.fitBounds(L.latLngBounds([start, end]), { padding: [30, 30] });
                     } else {
                         mapPanel.innerHTML = mapPlaceholder('No GPS route was recorded for this trip.', 'fa-map-marked-alt');
                     }
                     return;
                 }
 
-                new google.maps.Marker({ position: points[0], map: map, icon: busIconObj() });
-                new google.maps.Marker({ position: points[points.length - 1], map: map, icon: pinIconObj('#b91c1c') });
-                new google.maps.Polyline({ path: points, map: map, strokeColor: '#1e6031', strokeWeight: 4 });
-
-                const bounds = new google.maps.LatLngBounds();
-                points.forEach(p => bounds.extend(p));
-                map.fitBounds(bounds, 30);
+                // End = the configured Motor Pool gate (CLSU_MOTORPOOL_GATE_LAT/LNG in .env).
+                const gateLat = parseFloat('{{ env('CLSU_MOTORPOOL_GATE_LAT') }}');
+                const gateLng = parseFloat('{{ env('CLSU_MOTORPOOL_GATE_LNG') }}');
+                const startPt = (!isNaN(gateLat) && !isNaN(gateLng))
+                    ? [gateLat, gateLng]
+                    : ((ticket.start_latitude && ticket.start_longitude)
+                        ? [parseFloat(ticket.start_latitude), parseFloat(ticket.start_longitude)] : points[0]);
+                const endPt = (!isNaN(gateLat) && !isNaN(gateLng))
+                    ? [gateLat, gateLng]
+                    : ((ticket.end_latitude && ticket.end_longitude)
+                        ? [parseFloat(ticket.end_latitude), parseFloat(ticket.end_longitude)] : points[points.length - 1]);
+                const startMarker = L.marker(startPt, { icon: tripBusIconV2() }).addTo(map);
+                startMarker.bindPopup(`<div style="font-size:12px;"><b>Departure:</b> ${formatManila(ticket.actual_departure_at)}</div>`);
+                const endMarker = L.marker(endPt, { icon: tripPinIconV2('#b91c1c') }).addTo(map);
+                endMarker.bindPopup(`<div style="font-size:12px;"><b>Arrival:</b> ${formatManila(ticket.actual_arrival_at)}</div>`);
+                                const linePts = [startPt, ...points, endPt];
+                const routeLine = L.polyline(linePts, { color: '#1e6031', weight: 4 }).addTo(map);
+                // Wider invisible line so the route is easy to click.
+                const hitLine = L.polyline(linePts, { color: '#000', weight: 16, opacity: 0 }).addTo(map);
+                const onRouteClick = (e) => {
+                    // Clicks at the gate: show the real departure/arrival time from the ticket.
+                    const toEnd = haversineKm(e.latlng.lat, e.latlng.lng, endPt[0], endPt[1]) * 1000;
+                    const toStart = haversineKm(e.latlng.lat, e.latlng.lng, startPt[0], startPt[1]) * 1000;
+                    if (toEnd < 40 && toStart < 40) {
+                        L.popup().setLatLng(endPt)
+                            .setContent(`<div style="font-size:12px;"><b>Departure:</b> ${formatManila(ticket.actual_departure_at)}<br><b>Arrival:</b> ${formatManila(ticket.actual_arrival_at)}</div>`)
+                            .openOn(map);
+                        return;
+                    }
+                    if (toEnd < 40) {
+                        L.popup().setLatLng(endPt)
+                            .setContent(`<div style="font-size:12px;"><b>Arrival:</b> ${formatManila(ticket.actual_arrival_at)}</div>`)
+                            .openOn(map);
+                        return;
+                    }
+                    if (toStart < 40) {
+                        L.popup().setLatLng(startPt)
+                            .setContent(`<div style="font-size:12px;"><b>Departure:</b> ${formatManila(ticket.actual_departure_at)}</div>`)
+                            .openOn(map);
+                        return;
+                    }
+                    // Elsewhere on the route: show the nearest GPS point's time and speed.
+                    const idx = nearestPointIndex(points, e.latlng);
+                    const pt = raw[idx];
+                    const speed = (pt.speed_kph !== null && pt.speed_kph !== undefined)
+                        ? `${Number(pt.speed_kph).toFixed(0)} km/h` : 'N/A';
+                    L.popup()
+                        .setLatLng(points[idx])
+                        .setContent(`<div style="font-size:12px;"><b>Time:</b> ${formatManila(pt.recorded_at)}<br><b>Speed:</b> ${speed}</div>`)
+                        .openOn(map);
+                };
+                routeLine.on('click', onRouteClick);
+                hitLine.on('click', onRouteClick);
+                map.invalidateSize();
+                map.fitBounds(L.latLngBounds(linePts), { padding: [30, 30] });
 
                 const summary = document.getElementById('ticket-detail-summary');
                 if (summary) {
@@ -2251,13 +2287,15 @@ function renderCompletedRouteMap(ticket, mapPanel) {
             .catch(() => {
                 mapPanel.innerHTML = mapPlaceholder('Could not load the route for this trip.', 'fa-exclamation-triangle');
             });
-    }, 50);
+
+        map.invalidateSize();
+    }, 300);
 }
 
 function renderLiveTrackingMap(ticket, mapPanel, driverLocation, destinationText, destinationCoords) {
     mapPanel.innerHTML = `
         <div id="ticket-detail-map" class="h-full w-full" style="background:#f3f4f6;"></div>
-        <div id="ticket-detail-banner" class="absolute top-3 right-3 left-3 md:left-auto md:max-w-[280px] bg-[#1e6031] text-white rounded-lg shadow-lg px-4 py-3 text-xs">
+        <div id="ticket-detail-banner" class="absolute top-3 right-3 left-3 md:left-auto md:max-w-[280px] bg-[#1e6031] text-white rounded-lg shadow-lg px-4 py-3 text-xs" style="z-index:500;">
             <div class="font-semibold mb-1"><i class="fas fa-location-dot mr-1"></i> Current Location</div>
             <div id="ticket-detail-location-name" class="text-white/90">Locating...</div>
             <div id="ticket-detail-distance" class="mt-1 italic text-white/80"></div>
@@ -2267,88 +2305,71 @@ function renderLiveTrackingMap(ticket, mapPanel, driverLocation, destinationText
     setTimeout(() => {
         const map = initTicketMap('ticket-detail-map');
 
-        const current = { lat: driverLocation.latitude, lng: driverLocation.longitude };
-        new google.maps.Marker({ position: current, map: map, icon: busIconObj() });
-        map.setCenter(current);
-        map.setZoom(13);
+        const current = [parseFloat(driverLocation.latitude), parseFloat(driverLocation.longitude)];
+        L.marker(current, { icon: tripBusIconV2() }).addTo(map);
+        map.setView(current, 13);
 
-        const geocoder = new google.maps.Geocoder();
+        // Reverse-geocode the current position into a place name (OpenStreetMap Nominatim).
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${current[0]}&lon=${current[1]}`, {
+            headers: { 'Accept-Language': 'en' }
+        })
+            .then(r => r.json())
+            .then(d => {
+                const nameEl = document.getElementById('ticket-detail-location-name');
+                if (!nameEl) return;
+                nameEl.textContent = (d && d.display_name)
+                    ? d.display_name
+                    : `${current[0].toFixed(4)}, ${current[1].toFixed(4)}`;
+            })
+            .catch(() => {
+                const nameEl = document.getElementById('ticket-detail-location-name');
+                if (nameEl) nameEl.textContent = `${current[0].toFixed(4)}, ${current[1].toFixed(4)}`;
+            });
 
-        // Reverse-geocode the current position into a readable place name.
-        geocoder.geocode({ location: current }, (results, status) => {
-            const nameEl = document.getElementById('ticket-detail-location-name');
-            if (!nameEl) return;
-            if (status === 'OK' && results && results.length > 0) {
-                let shortName = results[0].formatted_address;
-                const sublocality = results.find(r => r.types.includes('sublocality') || r.types.includes('neighborhood'));
-                if (sublocality) shortName = sublocality.formatted_address;
-                nameEl.textContent = shortName;
-            } else {
-                nameEl.textContent = `${current.lat.toFixed(4)}, ${current.lng.toFixed(4)}`;
-            }
-        });
-
-        // If the travel order already has an exact pinned destination (set via
-        // the Places search + draggable pin when the trip was created), use it
-        // directly - it's more accurate than re-guessing from the free-text
-        // destination name, and skips an extra Geocoding API call.
+        // Use the pinned destination when available.
         if (destinationCoords) {
-            plotDestinationAndRoute(map, current, destinationCoords, destinationText);
-            return;
+            plotDestinationAndRoute(map, current, [destinationCoords.lat, destinationCoords.lng], destinationText);
+        } else if (destinationText) {
+            // Fallback for older trips: search the destination text.
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(destinationText + ', Philippines')}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (!res || res.length === 0) return;
+                    plotDestinationAndRoute(map, current, [parseFloat(res[0].lat), parseFloat(res[0].lon)], destinationText);
+                });
         }
 
-        if (!destinationText) return;
-
-        // Fallback for older trips created before the destination pin existed:
-        // forward-geocode the destination text instead.
-        geocoder.geocode({ address: destinationText + ', Philippines' }, (results, status) => {
-            if (status !== 'OK' || !results || results.length === 0) return;
-            const dest = results[0].geometry.location;
-            plotDestinationAndRoute(map, current, { lat: dest.lat(), lng: dest.lng() }, destinationText);
-        });
+        map.invalidateSize();
     }, 50);
 }
 
 function plotDestinationAndRoute(map, current, dest, destinationText) {
-    new google.maps.Marker({ position: dest, map: map, icon: pinIconObj('#b91c1c'), title: 'Destination: ' + destinationText });
+    L.marker(dest, { icon: tripPinIconV2('#b91c1c') }).addTo(map).bindTooltip('Destination: ' + destinationText);
 
-    const directionsService = new google.maps.DirectionsService();
-    directionsService.route({
-        origin: current,
-        destination: dest,
-        travelMode: google.maps.TravelMode.DRIVING,
-    }, (result, dirStatus) => {
-        const distanceEl = document.getElementById('ticket-detail-distance');
+    const distanceEl = document.getElementById('ticket-detail-distance');
+    const straightKm = haversineKm(current[0], current[1], dest[0], dest[1]);
 
-        if (dirStatus === 'OK' && result.routes && result.routes.length > 0) {
-            const route = result.routes[0];
-            new google.maps.Polyline({
-                path: route.overview_path, map: map,
-                strokeColor: '#f97316', strokeWeight: 5,
-            });
-
-            const bounds = new google.maps.LatLngBounds();
-            bounds.extend(current); bounds.extend(dest);
-            map.fitBounds(bounds, 40);
-
-            const leg = route.legs[0];
-            if (distanceEl && leg) {
-                distanceEl.textContent = `${leg.distance.text} \u00b7 about ${leg.duration.text} away from ${destinationText}`;
+    // Road route from OSRM (driving). Falls back to a straight dashed line.
+    fetch(`https://router.project-osrm.org/route/v1/driving/${current[1]},${current[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) throw new Error('no route');
+            const route = data.routes[0];
+            const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+            L.polyline(coords, { color: '#f97316', weight: 5 }).addTo(map);
+            map.fitBounds(L.latLngBounds([current, dest]), { padding: [40, 40] });
+            if (distanceEl) {
+                distanceEl.textContent = `${(route.distance / 1000).toFixed(1)} km \u00b7 about ${Math.round(route.duration / 60)} min away from ${destinationText}`;
             }
-        } else if (distanceEl) {
-            new google.maps.Polyline({
-                path: [current, dest], map: map,
-                strokeOpacity: 0,
-                icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: '#f97316', scale: 3 }, offset: '0', repeat: '12px' }],
-            });
-            const bounds = new google.maps.LatLngBounds();
-            bounds.extend(current); bounds.extend(dest);
-            map.fitBounds(bounds, 40);
-            distanceEl.textContent = `${haversineKm(current.lat, current.lng, dest.lat, dest.lng).toFixed(1)} km away from ${destinationText} (straight-line)`;
-        }
-    });
+        })
+        .catch(() => {
+            L.polyline([current, dest], { color: '#f97316', weight: 3, dashArray: '6,8' }).addTo(map);
+            map.fitBounds(L.latLngBounds([current, dest]), { padding: [40, 40] });
+            if (distanceEl) {
+                distanceEl.textContent = `${straightKm.toFixed(1)} km away from ${destinationText} (straight-line)`;
+            }
+        });
 }
-
 
 // Function to format passengers array properly
 function formatPassengers(passengers) {

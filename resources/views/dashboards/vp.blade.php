@@ -180,8 +180,7 @@
                         </div>
                     </div>
                 </div>
-                @endif
-                
+
                 <!-- Trip Ticket Approvals (only for VP of Office of the Vice President for Administration) -->
                 @if(isset($isVpOfAdministration) && $isVpOfAdministration)
                 <div class="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200 p-3 transition-all duration-200 hover:shadow-md">

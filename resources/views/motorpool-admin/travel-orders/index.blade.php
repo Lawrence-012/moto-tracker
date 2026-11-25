@@ -1,6 +1,22 @@
 @extends('layouts.motorpool-admin')
 
 @section('content')
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
+<script>
+// Free OpenStreetMap map helper (replaces Google Maps for Route Taken).
+const lfMaps = {};
+function lfCreateMap(id) {
+    if (lfMaps[id]) { lfMaps[id].remove(); }
+    const m = L.map(id).setView([15.4, 120.9], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(m);
+    lfMaps[id] = m;
+    return m;
+}
+</script>
 <div class="py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Success Message -->
@@ -50,6 +66,11 @@
             <!-- Tabs -->
             <div class="border-b border-gray-200 mb-6">
                 <nav class="flex space-x-8">
+                    <button type="button" 
+                            class="tab-button pb-3 px-1 border-b-2 font-medium text-sm {{ $tab === 'awaiting' ? 'border-[#1e6031] text-[#1e6031]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}"
+                            data-tab="awaiting">
+                        Pending
+                    </button>
                     <button type="button" 
                             class="tab-button pb-3 px-1 border-b-2 font-medium text-sm {{ $tab === 'pending' ? 'border-[#1e6031] text-[#1e6031]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}"
                             data-tab="pending">
@@ -210,10 +231,12 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">No approved travel orders found</h3>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">No travel orders found</h3>
                     <p class="mt-1 text-sm text-gray-500">
                         @if($search)
                             No travel orders match your search "{{ $search }}".
+                        @elseif($tab === 'awaiting')
+                            There are no travel orders waiting for approval.
                         @elseif($tab === 'pending')
                             There are currently no approved travel orders.
                         @elseif($tab === 'completed')
@@ -308,18 +331,13 @@
                             <div class="mb-2">
                                 <label class="small fw-semibold text-success mb-1" style="font-size: 0.8rem;">Destination <span class="text-danger">*</span></label>
                                 <div class="input-group input-group-sm">
-                                    <input type="text" name="destination" id="to_destination" readonly
-                                           onclick="openDestinationMapModal()"
+                                    <input type="text" name="destination" id="to_destination"
                                            class="form-control form-control-sm border-success"
-                                           style="cursor: pointer; background-color: #fff;"
-                                           placeholder="Type an address or place name" required>
-                                    <button type="button" class="btn btn-outline-success" onclick="openDestinationMapModal()">
-                                        <i class="fas fa-magnifying-glass"></i>
-                                    </button>
+                                           placeholder="Type the place name, e.g. Tarlac State University" required>
                                 </div>
                                 <div class="invalid-feedback" id="destination_error"></div>
                                 <p class="mt-1 mb-0" style="font-size: 0.7rem; color: #6c757d;">
-                                    <i class="fas fa-circle-info me-1"></i>Pick or search a place to drop a pin - this is what the driver will see as the exact destination.
+                                    <i class="fas fa-circle-info me-1"></i>Type the place name of the destination.
                                 </p>
                                 <input type="hidden" name="latitude" id="to_latitude">
                                 <input type="hidden" name="longitude" id="to_longitude">
@@ -867,7 +885,7 @@ function renderDetailsRouteMap(tripTicketId) {
         const mapEl = document.getElementById('details-route-map');
         if (!mapEl) return;
 
-        detailsRouteMapInstance = gmCreateMap('details-route-map');
+        detailsRouteMapInstance = lfCreateMap('details-route-map');
 
         fetch(tripTrailUrlTemplate.replace('__ID__', tripTicketId))
             .then(r => r.json())
@@ -880,14 +898,13 @@ function renderDetailsRouteMap(tripTicketId) {
                     return;
                 }
 
-                const polyline = new google.maps.Polyline({ path: points, map: detailsRouteMapInstance, strokeColor: '#1e6031', strokeWeight: 4 });
-                const startMarker = gmCircleMarker(detailsRouteMapInstance, points[0], { radius: 6, color: '#1e6031', title: 'Departure' });
-                gmBindInfoWindow(detailsRouteMapInstance, startMarker, 'Departure');
-                const endMarker = gmCircleMarker(detailsRouteMapInstance, points[points.length - 1], { radius: 6, color: '#b91c1c', title: 'Arrival' });
-                gmBindInfoWindow(detailsRouteMapInstance, endMarker, 'Arrival');
+                const ll = points.map(p => [p.lat, p.lng]);
+                const polyline = L.polyline(ll, { color: '#1e6031', weight: 4 }).addTo(detailsRouteMapInstance);
+                const startMarker = L.circleMarker(ll[0], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#1e6031', fillOpacity: 1 }).addTo(detailsRouteMapInstance).bindTooltip('Departure');
+                const endMarker = L.circleMarker(ll[ll.length - 1], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#b91c1c', fillOpacity: 1 }).addTo(detailsRouteMapInstance).bindTooltip('Arrival');
                 detailsRouteMapOverlays.push(polyline, startMarker, endMarker);
-
-                gmFitBoundsToPath(detailsRouteMapInstance, points, 20);
+                detailsRouteMapInstance.invalidateSize();
+                detailsRouteMapInstance.fitBounds(L.latLngBounds(ll), { padding: [20, 20] });
 
                 document.getElementById('details-route-summary').textContent =
                     `${points.length} GPS points recorded along this trip.`;
@@ -1301,9 +1318,9 @@ function viewTripRoute(tripTicketId) {
 
     setTimeout(() => {
         if (!routeMapInstance) {
-            routeMapInstance = gmCreateMap('route-map');
+            routeMapInstance = lfCreateMap('route-map');
         } else {
-            routeMapOverlays.forEach((overlay) => overlay.setMap(null));
+            routeMapOverlays.forEach((overlay) => overlay.remove());
             routeMapOverlays = [];
         }
 
@@ -1318,14 +1335,13 @@ function viewTripRoute(tripTicketId) {
                     return;
                 }
 
-                const polyline = new google.maps.Polyline({ path: points, map: routeMapInstance, strokeColor: '#1e6031', strokeWeight: 4 });
-                const startMarker = gmCircleMarker(routeMapInstance, points[0], { radius: 7, color: '#1e6031', title: 'Departure' });
-                gmBindInfoWindow(routeMapInstance, startMarker, 'Departure');
-                const endMarker = gmCircleMarker(routeMapInstance, points[points.length - 1], { radius: 7, color: '#b91c1c', title: 'Arrival' });
-                gmBindInfoWindow(routeMapInstance, endMarker, 'Arrival');
+                const ll = points.map(p => [p.lat, p.lng]);
+                const polyline = L.polyline(ll, { color: '#1e6031', weight: 4 }).addTo(routeMapInstance);
+                const startMarker = L.circleMarker(ll[0], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#1e6031', fillOpacity: 1 }).addTo(routeMapInstance).bindTooltip('Departure');
+                const endMarker = L.circleMarker(ll[ll.length - 1], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#b91c1c', fillOpacity: 1 }).addTo(routeMapInstance).bindTooltip('Arrival');
                 routeMapOverlays.push(polyline, startMarker, endMarker);
-
-                gmFitBoundsToPath(routeMapInstance, points, 30);
+                routeMapInstance.invalidateSize();
+                routeMapInstance.fitBounds(L.latLngBounds(ll), { padding: [30, 30] });
 
                 document.getElementById('route-summary').textContent =
                     `${points.length} GPS points recorded along this trip.`;

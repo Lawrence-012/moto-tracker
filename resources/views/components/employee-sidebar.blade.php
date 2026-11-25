@@ -138,18 +138,8 @@
                         $isPresident = auth()->user()->employee->is_president;
                         $isVP = auth()->user()->employee->is_vp;
                         
-                        $primaryUnitId = auth()->user()->employee->positions()
-                            ->where('is_primary', 1)
-                            ->value('unit_id');
-
-                        $primaryUnitName = $primaryUnitId
-                            ? \App\Models\Unit::whereKey($primaryUnitId)->value('unit_name')
-                            : null;
-
-                        $isTransportationServicesUnitHead =
-                            $isHead &&
-                            $primaryUnitName &&
-                            str_contains(strtolower($primaryUnitName), 'transportation services');
+                        $isTransportationServicesUnitHead = auth()->user()->employee->unit && 
+                            str_contains(strtolower(auth()->user()->employee->unit->unit_name), 'transportation services');
                         
                         $isVpOfAdministration = auth()->user()->employee->positions()->whereHas('office', function($query) {
                             $query->where('office_name', 'Office of the Vice President for Administration');
@@ -186,6 +176,10 @@
                     <!-- Sub-items for Approvals -->
                     <div class="ml-4 mt-1 space-y-1 approvals-submenu hidden">
                         <!-- Travel Order Approvals -->
+                        @php
+                            $isTransportationServicesUnitHead = auth()->user()->employee && auth()->user()->employee->unit && 
+                                str_contains(strtolower(auth()->user()->employee->unit->unit_name), 'transportation services');
+                        @endphp
                         @if(auth()->user()->employee && (auth()->user()->employee->is_divisionhead || auth()->user()->employee->is_head || auth()->user()->employee->is_president || auth()->user()->employee->is_vp))
                             @if((auth()->user()->employee->is_divisionhead || auth()->user()->employee->is_head || auth()->user()->employee->is_president || auth()->user()->employee->is_vp) && !$isTransportationServicesUnitHead)
                         <a href="@if(auth()->user()->employee->is_divisionhead){{ route('travel-orders.approvals.divisionhead') }}@elseif(auth()->user()->employee->is_head){{ route('travel-orders.approvals.head') }}@elseif(auth()->user()->employee->is_president){{ route('travel-orders.approvals.president') }}@elseif(auth()->user()->employee->is_vp){{ route('travel-orders.approvals.vp') }}@endif" class="@if(request()->routeIs('travel-orders.approvals.*')) bg-green-100 text-[#1e6031] @else text-gray-700 hover:bg-gray-100 @endif flex items-center px-3 py-2 rounded-lg transition-colors duration-200 mb-1">
@@ -232,108 +226,34 @@
                         
                         <!-- Itinerary Approvals -->
                         @php
-                            $employee = auth()->user()->employee;
-
-                            $isDivisionHead = $employee && (bool) $employee->is_divisionhead;
-                            // Head Panel / Unit Head takes priority for the Itinerary Approval link.
-                            // Some leadership records have both is_head=1 and is_vp=1.
-                            // If the account is being used as Head Panel, it must open the
-                            // Unit Head itinerary queue, not the VP queue.
-                            $isUnitHead = $employee
-                                && (bool) $employee->is_head
-                                && !(bool) $employee->is_divisionhead
-                                && !(bool) $employee->is_president;
-
-                            $isVpApprover = $employee
-                                && ((bool) $employee->is_vp || (bool) $employee->is_president)
-                                && !$isUnitHead;
-
-                            // IMPORTANT:
-                            // A Unit Head ALWAYS opens the Unit Head Pending queue.
-                            // Any VP (VPAA, VPAD, VP for Research & Extension, VP for
-                            // Business Affairs) or the President ALWAYS opens the VP
-                            // Pending queue — each only sees the itineraries whose
-                            // passenger resolves to THEM as the next-rank approver
-                            // (see App\Support\ItineraryApproverResolver).
-                            // They must never be routed to each other's queue.
-                            $showItineraryApprovals = $employee && !$isDivisionHead && ($isUnitHead || $isTransportationServicesUnitHead || $isVpApprover);
+                            $isDivisionHead = auth()->user()->employee && auth()->user()->employee->is_divisionhead;
                         @endphp
-
-                        @if($showItineraryApprovals)
-                            @php
-                                $itineraryApprovalRoute = ($isUnitHead || $isTransportationServicesUnitHead)
-                                    ? route('itinerary.approvals.unit-head.pending')
-                                    : route('motorpool.approvals.itineraries.vp');
-
-                                if ($isUnitHead || $isTransportationServicesUnitHead) {
-                                    // Pending ITINERARIES awaiting Unit Head approval.
-                                    $pendingItineraryQuery = \App\Models\Itinerary::where('unit_head_approved', false)
-                                        ->whereNull('unit_head_approved_at')
-                                        ->where('status', '!=', 'Cancelled');
-
-                                    // Transportation Services Unit Head keeps its existing
-                                    // authority to see all Unit Head pending itineraries.
-                                    if (!$isTransportationServicesUnitHead) {
-                                        $headUnitId = $employee->positions()
-                                            ->where('is_primary', 1)
-                                            ->value('unit_id');
-
-                                        if ($headUnitId) {
-                                            $employeeIds = \App\Models\Employee::whereHas('positions', function ($positionQuery) use ($headUnitId) {
-                                                $positionQuery->where('unit_id', $headUnitId);
-                                            })->pluck('id');
-
-                                            $travelOrderIds = \App\Models\TravelOrder::whereIn('employee_id', $employeeIds)
-                                                ->pluck('id')
-                                                ->map(fn ($id) => (int) $id);
-
-                                            if ($travelOrderIds->isEmpty()) {
-                                                $pendingItineraryQuery->whereRaw('1 = 0');
-                                            } else {
-                                                $pendingItineraryQuery->where(function ($itineraryQuery) use ($travelOrderIds) {
-                                                    foreach ($travelOrderIds as $travelOrderId) {
-                                                        $itineraryQuery->orWhereJsonContains('travel_order_id', $travelOrderId);
-                                                    }
-                                                });
-                                            }
-                                        } else {
-                                            $pendingItineraryQuery->whereRaw('1 = 0');
-                                        }
-                                    }
-
-                                    $pendingItineraryCount = $pendingItineraryQuery->count();
-                                } else {
-                                    // VP queue: only itineraries already approved by the
-                                    // Unit Head AND whose passenger resolves to THIS
-                                    // employee as the next-rank approver (VPAA only sees
-                                    // Academic Affairs passengers, VPAD only sees
-                                    // Administration passengers, etc).
-                                    $pendingItineraryCount = \App\Models\Itinerary::where('unit_head_approved', true)
-                                        ->where('vp_approved', false)
-                                        ->whereNull('vp_approved_at')
-                                        ->where('status', '!=', 'Cancelled')
-                                        ->get()
-                                        ->filter(function ($pendingItinerary) use ($employee) {
-                                            return \App\Support\ItineraryApproverResolver::resolveItineraryApprovers($pendingItinerary)
-                                                ->contains('id', $employee->id);
-                                        })
-                                        ->count();
-                                }
-                            @endphp
-
-                            <a href="{{ $itineraryApprovalRoute }}" class="@if(request()->routeIs('itinerary.approvals.*') || request()->routeIs('motorpool.approvals.itineraries.vp')) bg-green-100 text-[#1e6031] @else text-gray-700 hover:bg-gray-100 @endif flex items-center px-3 py-2 rounded-lg transition-colors duration-200 mb-1">
-                                <svg class="h-5 w-5 text-[#1e6031] mr-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2-2z" />
-                                </svg>
-                                <span class="text-sm font-medium @if(request()->routeIs('itinerary.approvals.*') || request()->routeIs('motorpool.approvals.itineraries.vp')) text-[#1e6031] @endif">Itinerary Approvals</span>
-                                @if($pendingItineraryCount > 0)
-                                    <span class="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#1e6031] text-white">
-                                        {{ $pendingItineraryCount }}
-                                    </span>
-                                @endif
-                            </a>
+                        @php
+                            $iaEmp = auth()->user()->employee;
+                            $iaStep1 = $iaEmp ? \App\Support\ItineraryApprovers::pendingIdsForStep1($iaEmp) : collect();
+                            $iaStep2 = $iaEmp ? \App\Support\ItineraryApprovers::pendingIdsForStep2($iaEmp) : collect();
+                            $iaShow = $iaEmp ? \App\Support\ItineraryApprovers::isApprover($iaEmp) : false;
+                            $iaCount = $iaStep1->count() + $iaStep2->count();
+                            // Step 1 items go to the Unit Head queue; step 2 items go to the VP queue
+                            $iaRoute = $iaStep1->isNotEmpty()
+                                ? route('itinerary.approvals.unit-head.pending')
+                                : route('motorpool.approvals.itineraries.vp');
+                        @endphp
+                        @if($iaShow)
+                        <a href="{{ $iaRoute }}" class="@if(request()->routeIs('itinerary.approvals.*') || request()->routeIs('motorpool.approvals.itineraries.vp')) bg-green-100 text-[#1e6031] @else text-gray-700 hover:bg-gray-100 @endif flex items-center px-3 py-2 rounded-lg transition-colors duration-200 mb-1">
+                            <svg class="h-5 w-5 @if(request()->routeIs('itinerary.approvals.*')) text-[#1e6031] @else text-[#1e6031] @endif mr-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span class="text-sm font-medium @if(request()->routeIs('itinerary.approvals.*')) text-[#1e6031] @endif">Itinerary Approvals</span>
+                            @php $pendingItineraryCount = $iaCount; @endphp
+                            @if($pendingItineraryCount > 0)
+                                <span class="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#1e6031] text-white">
+                                    {{ $pendingItineraryCount }}
+                                </span>
+                            @endif
+                        </a>
                         @endif
-
+                        
                         <!-- Trip Ticket Approvals -->
                         @if(auth()->user()->employee && $isVpOfAdministration && auth()->user()->employee->is_vp)
                         <a href="{{ route('motorpool.approvals.triptickets.vp') }}" class="@if(request()->routeIs('motorpool.approvals.triptickets.vp')) bg-green-100 text-[#1e6031] @else text-gray-700 hover:bg-gray-100 @endif flex items-center px-3 py-2 rounded-lg transition-colors duration-200 mb-1">

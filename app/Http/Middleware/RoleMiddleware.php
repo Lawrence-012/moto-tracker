@@ -11,35 +11,31 @@ use Symfony\Component\HttpFoundation\Response;
 class RoleMiddleware
 {
     /**
-     * Handle an incoming request.
+     * Allow the request only if the user has one of the given roles.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * Usage: 'role:motorpool_admin' or 'role:motorpool_admin,admin'
+     * Users without a matching role receive HTTP 403 with an "Access denied" message.
      */
-    public function handle(Request $request, Closure $next, string $role): Response
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        // Check if user is authenticated
         if (!Auth::check()) {
             return redirect()->route('login');
         }
-        
+
         $user = Auth::user();
-        
-        // Handle driver role
-        if ($role === 'driver') {
-            $driver = Driver::where('user_id', $user->id)->first();
-            if (!$driver) {
-                return redirect()->route('dashboard')
-                    ->with('error', 'Access denied. You are not registered as a driver.');
+
+        // Driver check: the user must have a Driver record
+        if (in_array('driver', $roles, true)) {
+            if (Driver::where('user_id', $user->id)->exists()) {
+                return $next($request);
             }
+            abort(403, 'Access denied. You are not registered as a driver.');
+        }
+
+        if (in_array($user->role, $roles, true)) {
             return $next($request);
         }
-        
-        // Handle other roles (existing logic)
-        if ($user->role !== $role) {
-            return redirect()->route('dashboard')
-                ->with('error', 'Access denied. Insufficient permissions.');
-        }
-        
-        return $next($request);
+
+        abort(403, 'Access denied. Insufficient permissions.');
     }
 }

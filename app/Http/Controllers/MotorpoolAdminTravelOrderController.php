@@ -38,10 +38,12 @@ class MotorpoolAdminTravelOrderController extends Controller
                 $query->where('status', 'completed');
                 break;
             case 'cancelled':
-                // Show only travel orders that were fully approved by both approvers before being cancelled
-                $query->where('status', 'cancelled')
-                      ->whereNotNull('approver1_approved_at')
-                      ->whereNotNull('approver2_approved_at');
+                // Show all cancelled travel orders, including ones rejected during approval
+                $query->where('status', 'cancelled');
+                break;
+            case 'awaiting':
+                // Travel orders still waiting for approval
+                $query->where('status', 'pending');
                 break;
             case 'pending':
             default:

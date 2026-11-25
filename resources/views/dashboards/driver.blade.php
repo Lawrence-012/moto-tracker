@@ -132,7 +132,7 @@
                     </a>
                                     
                     <!-- ON-GOING -->
-                    <a href="{{ route('driver.trips') }}" class="dashboard-card" style="
+                    <a href="{{ route('driver.trip-tickets', ['tab' => 'ongoing']) }}" class="dashboard-card" style="
                         flex:1 1 calc(33.333% - 8px);
                         min-width:calc(33.333% - 8px);
                         height:auto;
@@ -1030,5 +1030,4 @@
         });
     </script>
 
-    @include('drivers.partials.auto-trip-tracking')
 @endsection

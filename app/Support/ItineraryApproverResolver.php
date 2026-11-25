@@ -192,6 +192,85 @@ class ItineraryApproverResolver
         return ($president && $president->id !== $passenger->id) ? $president : null;
     }
 
+    /** Transportation Services (unit 26). Its Unit Head approves VP-level itineraries (step 2). */
+    public const TRANSPORTATION_UNIT_ID = 26;
+
+    /** True when any passenger is a VP or higher. */
+    private static function hasVpPassenger(Itinerary $itinerary): bool
+    {
+        $passengers = Employee::whereIn('id', self::resolveItineraryEmployeeIds($itinerary))->get();
+
+        return $passengers->contains(fn (Employee $p) => self::employeeRank($p) >= self::RANK_VP);
+    }
+
+    /**
+     * STEP 1 approver:
+     *  - VP-level passenger -> the higher approver (President)
+     *  - otherwise -> Unit Head of the passenger's own unit
+     */
+    public static function stepOneApproverFor(Itinerary $itinerary): ?Employee
+    {
+        if (self::hasVpPassenger($itinerary)) {
+            return self::resolveItineraryApprovers($itinerary)->first();
+        }
+
+        $passengers = Employee::whereIn('id', self::resolveItineraryEmployeeIds($itinerary))->get();
+
+        foreach ($passengers as $passenger) {
+            $position = $passenger->positions()->where('is_primary', true)->first();
+
+            if (!$position || !$position->unit_id) {
+                continue;
+            }
+
+            $head = self::officerWithFlag('unit_head', 'unit_id', $position->unit_id);
+
+            if ($head && $head->id !== $passenger->id) {
+                return $head;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * STEP 2 (final) approver:
+     *  - VP-level passenger -> Unit Head of Transportation Services
+     *  - otherwise -> the higher approver one rank above the passenger
+     */
+    public static function finalApproverFor(Itinerary $itinerary): ?Employee
+    {
+        if (self::hasVpPassenger($itinerary)) {
+            return self::officerWithFlag('unit_head', 'unit_id', self::TRANSPORTATION_UNIT_ID);
+        }
+
+        return self::resolveItineraryApprovers($itinerary)->first();
+    }
+
+    /** The lower-rank officer printed on the itinerary form. */
+    public static function lowerOfficerFor(Itinerary $itinerary): ?Employee
+    {
+        return self::hasVpPassenger($itinerary)
+            ? self::officerWithFlag('unit_head', 'unit_id', self::TRANSPORTATION_UNIT_ID)
+            : self::stepOneApproverFor($itinerary);
+    }
+
+    /** Is this employee the STEP 1 approver for this itinerary? */
+    public static function isStepOneApprover(Employee $employee, Itinerary $itinerary): bool
+    {
+        $approver = self::stepOneApproverFor($itinerary);
+
+        return $approver !== null && (int) $approver->id === (int) $employee->id;
+    }
+
+    /** Is this employee the STEP 2 (final) approver for this itinerary? */
+    public static function isFinalApprover(Employee $employee, Itinerary $itinerary): bool
+    {
+        $approver = self::finalApproverFor($itinerary);
+
+        return $approver !== null && (int) $approver->id === (int) $employee->id;
+    }
+
     /**
      * All distinct approving employees required for an itinerary's
      * passenger(s). Usually a single VP, but an itinerary can list

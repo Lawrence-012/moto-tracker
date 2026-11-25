@@ -2201,6 +2201,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     function startWatch() {
+        // Driver app does not send location. The dashcam sends GPS.
+        return;
 
         if (watchId !== null) {
 

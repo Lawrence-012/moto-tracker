@@ -1,0 +1,10 @@
+UNDO THE ACCESS FIX
+===================
+1. REPLACE app/Http/Middleware/RoleMiddleware.php with the file in this zip (original version).
+2. REPLACE routes/web.php with the file in this zip (original version).
+3. DELETE resources/views/errors/403.blade.php   (it was added by the fix; not needed after undo).
+
+Then run from the project folder:
+  php artisan route:clear
+  php artisan config:clear
+  php artisan view:clear

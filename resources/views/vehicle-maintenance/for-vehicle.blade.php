@@ -855,7 +855,7 @@
                         // Format status badge
                         let statusClass = 'bg-gray-100 text-gray-800';
                         if (maintenance.status === 'Pending') statusClass = 'bg-yellow-100 text-yellow-800';
-                        else if (maintenance.status === 'Need Maintenance') statusClass = 'bg-red-100 text-red-800';
+                        else if (maintenance.status === 'Need Maintenance') statusClass = 'bg-red-100 text-red-700';
                         else if (maintenance.status === 'Under Maintenance') statusClass = 'bg-orange-100 text-orange-800';
                         else if(maintenance.status === 'Ongoing') statusClass = 'bg-blue-100 text-blue-800';
                         else if(maintenance.status === 'Completed') statusClass = 'bg-green-100 text-green-800';
@@ -1942,7 +1942,8 @@
         const kilometersSinceService = mileage - lastMaintenanceMileage;
         
         // Check if user has permanently dismissed this notification (from database)
-        const isDismissed = {{ $vehicle->isOilChangeNotificationDismissed() ? 'true' : 'false' }};
+        // No Ignore: the alert stays until a new maintenance record is logged. Only the X closes it for now.
+        const isDismissed = false;
         
         console.log('Checking oil change notification:', {
             mileage: mileage,
@@ -1962,6 +1963,7 @@
         
         const notificationHtml = `
             <div id="oilChangeFloatingNotification" class="fixed top-4 right-4 z-[9999] w-80 bg-white rounded-lg shadow-2xl border-2 border-orange-300" style="position: fixed !important; top: 1rem !important; right: 1rem !important; z-index: 9999 !important;">
+                <button type="button" onclick="document.getElementById('oilChangeFloatingNotification').remove()" class="absolute top-1 right-2 text-gray-400 hover:text-gray-700 text-lg leading-none" aria-label="Close" title="Close">&times;</button>
                 <div class="p-3">
                     <div class="mb-2 bg-orange-50 border border-orange-200 rounded p-2">
                         <p class="text-xs text-orange-800 font-semibold">
@@ -1989,11 +1991,6 @@
                         </div>
                     </div>
                     
-                    <div class="mt-3">
-                        <button onclick="dismissOilChangeNotification({{ $vehicle->id }}, 'ignore')" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs font-semibold py-1.5 px-2 rounded transition-colors">
-                            <i class="fas fa-times-circle"></i> Ignore
-                        </button>
-                    </div>
                 </div>
             </div>
         `;

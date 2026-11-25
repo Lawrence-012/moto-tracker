@@ -150,10 +150,8 @@ Route::middleware(['auth', 'role:driver'])
         // NEW TRIPS ROUTE
         // ====================================================
 
-        Route::get(
-            '/trips',
-            [DriverDashboardController::class, 'trips']
-        )->name('trips');
+        // Trips page removed for drivers: the schedule is the only driver view.
+        Route::redirect('/trips', '/driver/dashboard')->name('trips');
 
 
         // Itineraries
@@ -162,10 +160,6 @@ Route::middleware(['auth', 'role:driver'])
             [DriverDashboardController::class, 'itineraries']
         )->name('itineraries');
 
-        //Trips
-        Route::get('/trips', 
-        [DriverDashboardController::class, 'trips']
-        )->name('trips');
         
         // Trip Tickets
         Route::get(
@@ -274,276 +268,279 @@ Route::middleware('auth')->group(function () {
     )->name('profile.destroy');
 
 
-    // ========================================================
-    // ADMIN - OFFICES
-    // ========================================================
+    // Admin management: restricted to motorpool_admin and admin roles
+    Route::middleware('role:motorpool_admin,admin')->group(function () {
+        // ========================================================
+        // ADMIN - OFFICES
+        // ========================================================
 
-    Route::get(
-        '/admin/offices',
-        [OfficeController::class, 'index']
-    )->name('admin.offices.index');
+        Route::get(
+            '/admin/offices',
+            [OfficeController::class, 'index']
+        )->name('admin.offices.index');
 
-    Route::get(
-        '/admin/offices/create',
-        [OfficeController::class, 'create']
-    )->name('admin.offices.create');
+        Route::get(
+            '/admin/offices/create',
+            [OfficeController::class, 'create']
+        )->name('admin.offices.create');
 
-    Route::post(
-        '/admin/offices',
-        [OfficeController::class, 'store']
-    )->name('admin.offices.store');
+        Route::post(
+            '/admin/offices',
+            [OfficeController::class, 'store']
+        )->name('admin.offices.store');
 
-    Route::get(
-        '/admin/offices/{office}/edit',
-        [OfficeController::class, 'edit']
-    )->name('admin.offices.edit');
+        Route::get(
+            '/admin/offices/{office}/edit',
+            [OfficeController::class, 'edit']
+        )->name('admin.offices.edit');
 
-    Route::put(
-        '/admin/offices/{office}',
-        [OfficeController::class, 'update']
-    )->name('admin.offices.update');
-
-
-    // ========================================================
-    // ADMIN - DIVISIONS
-    // ========================================================
-
-    Route::get(
-        '/admin/divisions',
-        [DivisionController::class, 'index']
-    )->name('admin.divisions.index');
-
-    Route::get(
-        '/admin/divisions/create',
-        [DivisionController::class, 'create']
-    )->name('admin.divisions.create');
-
-    Route::post(
-        '/admin/divisions',
-        [DivisionController::class, 'store']
-    )->name('admin.divisions.store');
-
-    Route::get(
-        '/admin/divisions/{division}/edit',
-        [DivisionController::class, 'edit']
-    )->name('admin.divisions.edit');
-
-    Route::put(
-        '/admin/divisions/{division}',
-        [DivisionController::class, 'update']
-    )->name('admin.divisions.update');
-
-    Route::delete(
-        '/admin/divisions/{division}',
-        [DivisionController::class, 'destroy']
-    )->name('admin.divisions.destroy');
+        Route::put(
+            '/admin/offices/{office}',
+            [OfficeController::class, 'update']
+        )->name('admin.offices.update');
 
 
-    // ========================================================
-    // ADMIN - UNITS
-    // ========================================================
+        // ========================================================
+        // ADMIN - DIVISIONS
+        // ========================================================
 
-    Route::get(
-        '/admin/units',
-        [UnitController::class, 'index']
-    )->name('admin.units.index');
+        Route::get(
+            '/admin/divisions',
+            [DivisionController::class, 'index']
+        )->name('admin.divisions.index');
 
-    Route::get(
-        '/admin/units/create',
-        [UnitController::class, 'create']
-    )->name('admin.units.create');
+        Route::get(
+            '/admin/divisions/create',
+            [DivisionController::class, 'create']
+        )->name('admin.divisions.create');
 
-    Route::post(
-        '/admin/units',
-        [UnitController::class, 'store']
-    )->name('admin.units.store');
+        Route::post(
+            '/admin/divisions',
+            [DivisionController::class, 'store']
+        )->name('admin.divisions.store');
 
-    Route::get(
-        '/admin/units/{unit}/edit',
-        [UnitController::class, 'edit']
-    )->name('admin.units.edit');
+        Route::get(
+            '/admin/divisions/{division}/edit',
+            [DivisionController::class, 'edit']
+        )->name('admin.divisions.edit');
 
-    Route::put(
-        '/admin/units/{unit}',
-        [UnitController::class, 'update']
-    )->name('admin.units.update');
+        Route::put(
+            '/admin/divisions/{division}',
+            [DivisionController::class, 'update']
+        )->name('admin.divisions.update');
 
-    Route::delete(
-        '/admin/units/{unit}',
-        [UnitController::class, 'destroy']
-    )->name('admin.units.destroy');
-
-
-    // ========================================================
-    // ADMIN - SUBUNITS
-    // ========================================================
-
-    Route::get(
-        '/admin/subunits',
-        [SubunitController::class, 'index']
-    )->name('admin.subunits.index');
-
-    Route::get(
-        '/admin/subunits/create',
-        [SubunitController::class, 'create']
-    )->name('admin.subunits.create');
-
-    Route::post(
-        '/admin/subunits',
-        [SubunitController::class, 'store']
-    )->name('admin.subunits.store');
-
-    Route::get(
-        '/admin/subunits/{subunit}/edit',
-        [SubunitController::class, 'edit']
-    )->name('admin.subunits.edit');
-
-    Route::put(
-        '/admin/subunits/{subunit}',
-        [SubunitController::class, 'update']
-    )->name('admin.subunits.update');
-
-    Route::delete(
-        '/admin/subunits/{subunit}',
-        [SubunitController::class, 'destroy']
-    )->name('admin.subunits.destroy');
+        Route::delete(
+            '/admin/divisions/{division}',
+            [DivisionController::class, 'destroy']
+        )->name('admin.divisions.destroy');
 
 
-    // ========================================================
-    // ADMIN - CLASSES
-    // ========================================================
+        // ========================================================
+        // ADMIN - UNITS
+        // ========================================================
 
-    Route::get(
-        '/admin/classes',
-        [ClassController::class, 'index']
-    )->name('admin.classes.index');
+        Route::get(
+            '/admin/units',
+            [UnitController::class, 'index']
+        )->name('admin.units.index');
 
-    Route::get(
-        '/admin/classes/create',
-        [ClassController::class, 'create']
-    )->name('admin.classes.create');
+        Route::get(
+            '/admin/units/create',
+            [UnitController::class, 'create']
+        )->name('admin.units.create');
 
-    Route::post(
-        '/admin/classes',
-        [ClassController::class, 'store']
-    )->name('admin.classes.store');
+        Route::post(
+            '/admin/units',
+            [UnitController::class, 'store']
+        )->name('admin.units.store');
 
-    Route::get(
-        '/admin/classes/{class}/edit',
-        [ClassController::class, 'edit']
-    )->name('admin.classes.edit');
+        Route::get(
+            '/admin/units/{unit}/edit',
+            [UnitController::class, 'edit']
+        )->name('admin.units.edit');
 
-    Route::put(
-        '/admin/classes/{class}',
-        [ClassController::class, 'update']
-    )->name('admin.classes.update');
+        Route::put(
+            '/admin/units/{unit}',
+            [UnitController::class, 'update']
+        )->name('admin.units.update');
 
-    Route::delete(
-        '/admin/classes/{class}',
-        [ClassController::class, 'destroy']
-    )->name('admin.classes.destroy');
-
-
-    // ========================================================
-    // ADMIN - EMPLOYEES
-    // ========================================================
-
-    Route::get(
-        '/admin/employees',
-        [EmployeeController::class, 'index']
-    )->name('admin.employees.index');
-
-    Route::get(
-        '/admin/employees/create',
-        [EmployeeController::class, 'create']
-    )->name('admin.employees.create');
-
-    Route::get(
-        '/admin/employees/{employee}',
-        [EmployeeController::class, 'show']
-    )->name('admin.employees.show');
-
-    Route::post(
-        '/admin/employees',
-        [EmployeeController::class, 'store']
-    )->name('admin.employees.store');
-
-    Route::get(
-        '/admin/employees/{employee}/edit',
-        [EmployeeController::class, 'edit']
-    )->name('admin.employees.edit');
-
-    Route::get(
-        '/admin/employees/{employee}/data',
-        [EmployeeController::class, 'getEmployeeData']
-    )->name('admin.employees.data');
-
-    Route::put(
-        '/admin/employees/{employee}',
-        [EmployeeController::class, 'update']
-    )->name('admin.employees.update');
-
-    Route::delete(
-        '/admin/employees/{employee}',
-        [EmployeeController::class, 'destroy']
-    )->name('admin.employees.destroy');
+        Route::delete(
+            '/admin/units/{unit}',
+            [UnitController::class, 'destroy']
+        )->name('admin.units.destroy');
 
 
-    // Employee AJAX Routes
-    Route::get(
-        '/admin/employees/get-divisions-by-office',
-        [EmployeeController::class, 'getDivisionsByOffice']
-    )->name('admin.employees.get-divisions-by-office');
+        // ========================================================
+        // ADMIN - SUBUNITS
+        // ========================================================
 
-    Route::get(
-        '/admin/employees/get-units-by-division',
-        [EmployeeController::class, 'getUnitsByDivision']
-    )->name('admin.employees.get-units-by-division');
+        Route::get(
+            '/admin/subunits',
+            [SubunitController::class, 'index']
+        )->name('admin.subunits.index');
 
-    Route::get(
-        '/admin/employees/get-subunits-by-unit',
-        [EmployeeController::class, 'getSubunitsByUnit']
-    )->name('admin.employees.get-subunits-by-unit');
+        Route::get(
+            '/admin/subunits/create',
+            [SubunitController::class, 'create']
+        )->name('admin.subunits.create');
+
+        Route::post(
+            '/admin/subunits',
+            [SubunitController::class, 'store']
+        )->name('admin.subunits.store');
+
+        Route::get(
+            '/admin/subunits/{subunit}/edit',
+            [SubunitController::class, 'edit']
+        )->name('admin.subunits.edit');
+
+        Route::put(
+            '/admin/subunits/{subunit}',
+            [SubunitController::class, 'update']
+        )->name('admin.subunits.update');
+
+        Route::delete(
+            '/admin/subunits/{subunit}',
+            [SubunitController::class, 'destroy']
+        )->name('admin.subunits.destroy');
 
 
-    // ========================================================
-    // LEADERSHIP
-    // ========================================================
+        // ========================================================
+        // ADMIN - CLASSES
+        // ========================================================
 
-    Route::get(
-        '/admin/leaders',
-        [LeaderController::class, 'index']
-    )->name('admin.leaders.index');
+        Route::get(
+            '/admin/classes',
+            [ClassController::class, 'index']
+        )->name('admin.classes.index');
 
-    Route::get(
-        '/admin/leaders/offices',
-        [LeaderController::class, 'offices']
-    )->name('admin.leaders.offices');
+        Route::get(
+            '/admin/classes/create',
+            [ClassController::class, 'create']
+        )->name('admin.classes.create');
 
-    Route::get(
-        '/admin/leaders/offices/{office}',
-        [LeaderController::class, 'showOffice']
-    )->name('admin.leaders.office.show');
+        Route::post(
+            '/admin/classes',
+            [ClassController::class, 'store']
+        )->name('admin.classes.store');
 
-    Route::get(
-        '/admin/leaders/divisions/{division}',
-        [LeaderController::class, 'showDivision']
-    )->name('admin.leaders.division.show');
+        Route::get(
+            '/admin/classes/{class}/edit',
+            [ClassController::class, 'edit']
+        )->name('admin.classes.edit');
 
-    Route::get(
-        '/admin/leaders/units/{unit}',
-        [LeaderController::class, 'showUnit']
-    )->name('admin.leaders.unit.show');
+        Route::put(
+            '/admin/classes/{class}',
+            [ClassController::class, 'update']
+        )->name('admin.classes.update');
 
-    Route::get(
-        '/admin/leaders/edit/{type}/{id?}',
-        [LeaderController::class, 'edit']
-    )->name('admin.leaders.edit');
+        Route::delete(
+            '/admin/classes/{class}',
+            [ClassController::class, 'destroy']
+        )->name('admin.classes.destroy');
 
-    Route::post(
-        '/admin/leaders/update',
-        [LeaderController::class, 'update']
-    )->name('admin.leaders.update');
+
+        // ========================================================
+        // ADMIN - EMPLOYEES
+        // ========================================================
+
+        Route::get(
+            '/admin/employees',
+            [EmployeeController::class, 'index']
+        )->name('admin.employees.index');
+
+        Route::get(
+            '/admin/employees/create',
+            [EmployeeController::class, 'create']
+        )->name('admin.employees.create');
+
+        Route::get(
+            '/admin/employees/{employee}',
+            [EmployeeController::class, 'show']
+        )->name('admin.employees.show');
+
+        Route::post(
+            '/admin/employees',
+            [EmployeeController::class, 'store']
+        )->name('admin.employees.store');
+
+        Route::get(
+            '/admin/employees/{employee}/edit',
+            [EmployeeController::class, 'edit']
+        )->name('admin.employees.edit');
+
+        Route::get(
+            '/admin/employees/{employee}/data',
+            [EmployeeController::class, 'getEmployeeData']
+        )->name('admin.employees.data');
+
+        Route::put(
+            '/admin/employees/{employee}',
+            [EmployeeController::class, 'update']
+        )->name('admin.employees.update');
+
+        Route::delete(
+            '/admin/employees/{employee}',
+            [EmployeeController::class, 'destroy']
+        )->name('admin.employees.destroy');
+
+
+        // Employee AJAX Routes
+        Route::get(
+            '/admin/employees/get-divisions-by-office',
+            [EmployeeController::class, 'getDivisionsByOffice']
+        )->name('admin.employees.get-divisions-by-office');
+
+        Route::get(
+            '/admin/employees/get-units-by-division',
+            [EmployeeController::class, 'getUnitsByDivision']
+        )->name('admin.employees.get-units-by-division');
+
+        Route::get(
+            '/admin/employees/get-subunits-by-unit',
+            [EmployeeController::class, 'getSubunitsByUnit']
+        )->name('admin.employees.get-subunits-by-unit');
+
+
+        // ========================================================
+        // LEADERSHIP
+        // ========================================================
+
+        Route::get(
+            '/admin/leaders',
+            [LeaderController::class, 'index']
+        )->name('admin.leaders.index');
+
+        Route::get(
+            '/admin/leaders/offices',
+            [LeaderController::class, 'offices']
+        )->name('admin.leaders.offices');
+
+        Route::get(
+            '/admin/leaders/offices/{office}',
+            [LeaderController::class, 'showOffice']
+        )->name('admin.leaders.office.show');
+
+        Route::get(
+            '/admin/leaders/divisions/{division}',
+            [LeaderController::class, 'showDivision']
+        )->name('admin.leaders.division.show');
+
+        Route::get(
+            '/admin/leaders/units/{unit}',
+            [LeaderController::class, 'showUnit']
+        )->name('admin.leaders.unit.show');
+
+        Route::get(
+            '/admin/leaders/edit/{type}/{id?}',
+            [LeaderController::class, 'edit']
+        )->name('admin.leaders.edit');
+
+        Route::post(
+            '/admin/leaders/update',
+            [LeaderController::class, 'update']
+        )->name('admin.leaders.update');
+    });
 
 
     // ========================================================
@@ -1992,6 +1989,22 @@ Route::middleware('auth')->group(function () {
         [App\Http\Controllers\VehicleMaintenanceController::class, 'notifications']
     )->name('vehicle-maintenance.notifications');
 
+    // Remove a work order from this admin's notifications (POST) / undo it (DELETE)
+    Route::post(
+        '/api/maintenance/{vehicleMaintenance}/dismiss-notification',
+        [App\Http\Controllers\VehicleMaintenanceController::class, 'dismissNotification']
+    )->name('vehicle-maintenance.notification.dismiss');
+
+    Route::delete(
+        '/api/maintenance/{vehicleMaintenance}/dismiss-notification',
+        [App\Http\Controllers\VehicleMaintenanceController::class, 'restoreNotification']
+    )->name('vehicle-maintenance.notification.restore');
+
+    Route::post(
+        '/api/notifications/read',
+        [App\Http\Controllers\VehicleMaintenanceController::class, 'markRead']
+    )->name('notifications.read');
+
 
     // ========================================================
     // MOTORPOOL DASHBOARD
@@ -2073,6 +2086,20 @@ Route::middleware('auth')->group(function () {
                 '/api/vehicles/dismiss-oil-change-notification',
                 [App\Http\Controllers\VehicleController::class, 'dismissOilChangeNotification']
             )->name('api.vehicles.dismiss-oil-change-notification');
+
+            // Dashcam registration: admin links a device (by its code/QR) to one vehicle
+            Route::middleware('role:motorpool_admin')->group(function () {
+                Route::get('/dashcams', [App\Http\Controllers\DashcamController::class, 'index'])
+                    ->name('dashcams.index');
+                Route::get('/dashcams/print', [App\Http\Controllers\DashcamController::class, 'printRegistered'])
+                    ->name('dashcams.print');
+                Route::post('/dashcams/register', [App\Http\Controllers\DashcamController::class, 'register'])
+                    ->name('dashcams.register');
+                Route::post('/dashcams/{dashcam}/unregister', [App\Http\Controllers\DashcamController::class, 'unregister'])
+                    ->name('dashcams.unregister');
+                Route::delete('/dashcams/{dashcam}', [App\Http\Controllers\DashcamController::class, 'destroy'])
+                    ->name('dashcams.destroy');
+            });
 
         });
 

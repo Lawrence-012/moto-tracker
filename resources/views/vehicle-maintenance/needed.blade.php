@@ -2,6 +2,17 @@
 
 @section('content')
 <style>
+    /* Remove (X) button for notifications: a real remove, with Restore to undo */
+    .notif-x {
+        width: 28px; height: 28px; border-radius: 999px; border: 0; background: transparent;
+        color: #9ca3af; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        transition: background-color .15s ease, color .15s ease;
+    }
+    .notif-x:hover { background-color: #fee2e2; color: #b91c1c; }
+    .notif-x:disabled { opacity: .5; cursor: wait; }
+    .restore-btn { color: #1e6031 !important; border: 1px solid #1e6031 !important; background-color: transparent !important; }
+    .restore-btn:hover { background-color: #1e6031 !important; color: #fff !important; }
+    tr.is-removed td { opacity: .55; }
     /* Stat tiles - matches the dashboard-card pattern used on the Motorpool Admin dashboard */
     .mn-card {
         flex: 1;
@@ -126,7 +137,7 @@
                     </thead>
                     <tbody>
                         @forelse($oilChangeVehicles as $index => $vehicle)
-                            <tr class="{{ $index % 2 == 1 ? 'bg-gray-50' : 'bg-white' }} hover:bg-[#f0f8f0]">
+                            <tr class="bg-red-50 hover:bg-red-100">
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="font-semibold" style="font-size: 0.9rem;">{{ $vehicle->plate_number }}</span>
                                     <div class="text-xs text-gray-400">{{ $vehicle->model }}</div>
@@ -138,7 +149,7 @@
                                     @if(in_array($vehicle->id, $dismissedVehicleIds))
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Dismissed by you</span>
                                     @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border-2 border-orange-300">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border-2 border-red-300">
                                             <i class="fas fa-oil-can mr-1"></i>Needs Oil Change
                                         </span>
                                     @endif
@@ -151,6 +162,15 @@
                                         <a href="{{ route('vehicle-maintenance.create') }}?vehicle_id={{ $vehicle->id }}" class="btn log-btn border inline-flex items-center justify-center" title="Log Maintenance">
                                             <i class="fas fa-plus"></i> Log
                                         </a>
+                                        @if(in_array($vehicle->id, $dismissedVehicleIds))
+                                            <button type="button" class="btn restore-btn border inline-flex items-center justify-center" data-restore-oil="{{ $vehicle->id }}" title="Show this alert again">
+                                                <i class="fas fa-rotate-left"></i> Restore
+                                            </button>
+                                        @else
+                                            <button type="button" class="notif-x" data-dismiss-oil="{{ $vehicle->id }}" title="Remove from notifications" aria-label="Remove from notifications">
+                                                <i class="fas fa-xmark"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -184,7 +204,7 @@
                     </thead>
                     <tbody>
                         @forelse($maintenanceRecords as $index => $record)
-                            <tr class="{{ $index % 2 == 1 ? 'bg-gray-50' : 'bg-white' }} hover:bg-[#f0f8f0]">
+                            <tr class="bg-red-50 hover:bg-red-100 {{ in_array($record->id, $dismissedMaintenanceIds) ? 'is-removed' : '' }}">
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="font-semibold" style="font-size: 0.9rem;">{{ $record->vehicle->plate_number ?? 'N/A' }}</span>
                                     <div class="text-xs text-gray-400">{{ $record->vehicle->model ?? '' }}</div>
@@ -194,7 +214,7 @@
                                 <td class="px-3 py-2 text-sm">{{ $record->place }}</td>
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                        @if($record->status === 'Need Maintenance') bg-red-100 text-red-800
+                                        @if($record->status === 'Need Maintenance') bg-red-100 text-red-700
                                         @else bg-blue-100 text-blue-800
                                         @endif">
                                         {{ $record->status }}
@@ -213,6 +233,15 @@
                                                 </button>
                                             </form>
                                         @endif
+                                        @if(in_array($record->id, $dismissedMaintenanceIds))
+                                            <button type="button" class="btn restore-btn border inline-flex items-center justify-center" data-restore-maint="{{ $record->id }}" title="Show this alert again">
+                                                <i class="fas fa-rotate-left"></i> Restore
+                                            </button>
+                                        @else
+                                            <button type="button" class="notif-x" data-dismiss-maint="{{ $record->id }}" title="Remove from notifications" aria-label="Remove from notifications">
+                                                <i class="fas fa-xmark"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -230,4 +259,44 @@
         </div>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrf,
+        'X-Requested-With': 'XMLHttpRequest'
+    };
+    const oilUrl = '{{ route("motorpool.api.vehicles.dismiss-oil-change-notification") }}';
+    const maintUrl = '{{ route("vehicle-maintenance.notification.dismiss", "__ID__") }}';
+
+    function send(url, method, body) {
+        return fetch(url, {
+            method: method,
+            headers: headers,
+            body: body ? JSON.stringify(body) : undefined
+        }).then(res => {
+            if (!res.ok) throw new Error('Request failed');
+            return res.json();
+        });
+    }
+
+    function bind(selector, handler) {
+        document.querySelectorAll(selector).forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.disabled = true;
+                handler(btn)
+                    .then(() => location.reload())
+                    .catch(() => { btn.disabled = false; });
+            });
+        });
+    }
+
+    bind('[data-dismiss-oil]', btn => send(oilUrl, 'POST', { vehicle_id: btn.dataset.dismissOil, action: 'ignore' }));
+    bind('[data-restore-oil]', btn => send(oilUrl, 'POST', { vehicle_id: btn.dataset.restoreOil, action: 'restore' }));
+    bind('[data-dismiss-maint]', btn => send(maintUrl.replace('__ID__', btn.dataset.dismissMaint), 'POST'));
+    bind('[data-restore-maint]', btn => send(maintUrl.replace('__ID__', btn.dataset.restoreMaint), 'DELETE'));
+});
+</script>
 @endsection

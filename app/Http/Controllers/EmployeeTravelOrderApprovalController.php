@@ -45,6 +45,23 @@ class EmployeeTravelOrderApprovalController extends Controller
         
         // Combine both sets of IDs
         $allIds = array_unique(array_merge($approver1Ids->toArray(), $approver2Ids->toArray()));
+
+        // VP for Administration (Ariel) and Unit Head of Transportation Services (Sir Irwin)
+        // see ALL pending travel orders, not only the ones assigned to them
+        if ($this->isOverallApprover($employee)) {
+            $allIds = DB::table('travel_orders')
+                ->where('status', '!=', 'cancelled')
+                ->where('status', '!=', 'draft')
+                ->where(function ($q) {
+                    $q->whereNull('approver1_approved_at')
+                      ->orWhere(function ($q2) {
+                          $q2->whereNotNull('approver1_approved_at')
+                             ->whereNull('approver2_approved_at');
+                      });
+                })
+                ->pluck('id')
+                ->toArray();
+        }
         
         // Now query using these IDs
         $query = TravelOrder::whereIn('id', $allIds);
@@ -424,5 +441,26 @@ class EmployeeTravelOrderApprovalController extends Controller
         
         return redirect()->route('employee.travel-orders.approvals.pending')
             ->with('success', 'Travel order approval rejected successfully.');
+    }
+
+    /** Ariel (VP for Administration) or Sir Irwin (Transportation Unit Head). */
+    private function isOverallApprover($employee): bool
+    {
+        if (!$employee) {
+            return false;
+        }
+
+        $adminVp = \App\Models\EmpPosition::where('is_primary', true)
+            ->where('office_id', 2)
+            ->whereIn('employee_id', \App\Models\Officer::where('vp', true)->pluck('employee_id'))
+            ->first();
+
+        $transportHead = \App\Models\EmpPosition::where('is_primary', true)
+            ->where('unit_id', 26)
+            ->whereIn('employee_id', \App\Models\Officer::where('unit_head', true)->pluck('employee_id'))
+            ->first();
+
+        return ($adminVp && (int) $adminVp->employee_id === (int) $employee->id)
+            || ($transportHead && (int) $transportHead->employee_id === (int) $employee->id);
     }
 }

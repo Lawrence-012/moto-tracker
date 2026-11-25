@@ -561,28 +561,8 @@ class ItineraryController extends Controller
             ];
         }
 
-        // Find the Unit Head of Transportation Services
-        $transportationHead = \App\Models\Employee::whereHas('positions', function($query) {
-            $query->where('position_name', 'LIKE', '%Head of Transportation Services%');
-            $query->where('unit_id', 26); // Transportation Services unit ID
-        })->first();
-        
-        // If not found through positions, try the officers table
-        if (!$transportationHead) {
-            $transportationHead = \App\Models\Employee::whereHas('officer', function($query) {
-                $query->where('unit_head', true);
-            })->whereHas('positions', function($query) {
-                $query->where('unit_id', 26); // Transportation Services unit ID
-            })->first();
-        }
-        
-        // If still not found, try to find unit head of transportation services unit
-        if (!$transportationHead) {
-            $transportationHead = \App\Models\Employee::whereHas('positions', function($query) {
-                $query->where('is_unit_head', true);
-                $query->where('unit_id', 26); // Transportation Services unit ID
-            })->first();
-        }
+        // Lower-rank officer = the STEP 1 approver (same rule as the approval queues)
+        $transportationHead = \App\Support\ItineraryApproverResolver::lowerOfficerFor($itinerary);
         
         if ($transportationHead) {
             $lowerRankOfficer = [

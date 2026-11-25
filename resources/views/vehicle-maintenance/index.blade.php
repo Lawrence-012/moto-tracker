@@ -161,7 +161,7 @@
                                 <td class="px-3 py-2 whitespace-nowrap">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                                         @if($record->status === 'Pending') bg-yellow-100 text-yellow-800
-                                        @elseif($record->status === 'Need Maintenance') bg-red-100 text-red-800
+                                        @elseif($record->status === 'Need Maintenance') bg-red-100 text-red-700
                                         @elseif($record->status === 'Under Maintenance') bg-blue-100 text-blue-800
                                         @elseif($record->status === 'Ongoing') bg-blue-100 text-blue-800
                                         @elseif($record->status === 'Completed') bg-green-100 text-green-800

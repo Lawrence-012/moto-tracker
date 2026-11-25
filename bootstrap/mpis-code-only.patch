@@ -1,0 +1,1330 @@
+diff --git a/app/Http/Controllers/ClassController.php b/app/Http/Controllers/ClassController.php
+index ef27a4b..84154bb 100644
+--- a/app/Http/Controllers/ClassController.php
++++ b/app/Http/Controllers/ClassController.php
+@@ -20,7 +20,7 @@ public function index(Request $request): View|JsonResponse
+             $query->where('class_name', 'like', '%' . $search . '%');
+         }
+         
+-        $query->orderBy('id_class', 'desc');
++        $query->orderBy('id', 'desc');
+         
+         $classes = $query->paginate(10)->appends($request->except('page'));
+         
+@@ -37,7 +37,7 @@ public function index(Request $request): View|JsonResponse
+     public function store(Request $request): RedirectResponse|JsonResponse
+     {
+         $request->validate([
+-            'class_name' => 'required|string|max:255|unique:lib_class,class_name',
++            'class_name' => 'required|string|max:255|unique:class,class_name',
+         ]);
+ 
+         $class = ClassModel::create([
+@@ -59,7 +59,7 @@ public function store(Request $request): RedirectResponse|JsonResponse
+     public function update(Request $request, ClassModel $class): RedirectResponse|JsonResponse
+     {
+         $request->validate([
+-            'class_name' => 'required|string|max:255|unique:lib_class,class_name,' . $class->id_class . ',id_class',
++            'class_name' => 'required|string|max:255|unique:class,class_name,'.$class->id,
+         ]);
+ 
+         $class->update([
+diff --git a/app/Http/Controllers/EmployeeController.php b/app/Http/Controllers/EmployeeController.php
+index 92633a4..202c055 100644
+--- a/app/Http/Controllers/EmployeeController.php
++++ b/app/Http/Controllers/EmployeeController.php
+@@ -103,7 +103,7 @@ public function index(Request $request): View|JsonResponse
+         // Load units for all divisions
+         $allDivisions = Division::all();
+         foreach ($allDivisions as $division) {
+-            $cascadingData['units'][$division->id_division] = Unit::where('unit_division', $division->id_division)->get();
++            $cascadingData['units'][$division->id_division] = Unit::where('division_id', $division->id)->get();
+         }
+         
+         // Load subunits for all units
+@@ -148,7 +148,7 @@ public function create(): View
+         // Load units for all divisions
+         $allDivisions = Division::all();
+         foreach ($allDivisions as $division) {
+-            $cascadingData['units'][$division->id_division] = Unit::where('unit_division', $division->id_division)->get();
++            $cascadingData['units'][$division->id_division] = Unit::where('division_id', $division->id)->get();
+         }
+         
+         // Load subunits for all units
+@@ -177,17 +177,17 @@ public function store(Request $request): RedirectResponse|JsonResponse
+             'password' => 'required|string|min:8|confirmed',
+             'position_name' => 'required|string|max:255',
+             'office_id' => 'nullable|exists:offices,id',
+-            'division_id' => 'nullable|exists:lib_divisions,id_division',
+-            'unit_id' => 'nullable|exists:lib_units,id',
+-            'subunit_id' => 'nullable|exists:lib_subunits,id_subunit',
+-            'class_id' => 'nullable|exists:lib_class,id_class',
++            'division_id' => 'nullable|exists:divisions,id',
++            'unit_id' => 'nullable|exists:units,id',
++            'subunit_id' => 'nullable|exists:subunits,id',
++            'class_id' => 'nullable|exists:class,id',
+             'additional_positions' => 'nullable|array',
+             'additional_positions.*.position_name' => 'nullable|string|max:255',
+             'additional_positions.*.office_id' => 'nullable|exists:offices,id',
+-            'additional_positions.*.division_id' => 'nullable|exists:lib_divisions,id_division',
+-            'additional_positions.*.unit_id' => 'nullable|exists:lib_units,id',
+-            'additional_positions.*.subunit_id' => 'nullable|exists:lib_subunits,id_subunit',
+-            'additional_positions.*.class_id' => 'nullable|exists:lib_class,id_class',
++            'additional_positions.*.division_id' => 'nullable|exists:divisions,id',
++            'additional_positions.*.unit_id' => 'nullable|exists:units,id',
++            'additional_positions.*.subunit_id' => 'nullable|exists:subunits,id',
++            'additional_positions.*.class_id' => 'nullable|exists:class,id',
+         ]);
+ 
+         // Handle checkbox values properly - always set emp_status to active (1)
+@@ -409,7 +409,7 @@ public function edit(Employee $employee): View
+         // Load units for all divisions
+         $allDivisions = Division::all();
+         foreach ($allDivisions as $division) {
+-            $cascadingData['units'][$division->id_division] = Unit::where('unit_division', $division->id_division)->get();
++            $cascadingData['units'][$division->id_division] = Unit::where('division_id', $division->id)->get();
+         }
+         
+         // Load subunits for all units
+@@ -451,18 +451,18 @@ public function update(Request $request, Employee $employee): RedirectResponse|J
+             'emp_status' => 'required|boolean',
+             'position_name' => 'required|string|max:255',
+             'office_id' => 'nullable|exists:offices,id',
+-            'division_id' => 'nullable|exists:lib_divisions,id_division',
+-            'unit_id' => 'nullable|exists:lib_units,id',
+-            'subunit_id' => 'nullable|exists:lib_subunits,id_subunit',
+-            'class_id' => 'nullable|exists:lib_class,id_class',
++            'division_id' => 'nullable|exists:divisions,id',
++            'unit_id' => 'nullable|exists:units,id',
++            'subunit_id' => 'nullable|exists:subunits,id',
++            'class_id' => 'nullable|exists:class,id',
+             'additional_positions' => 'nullable|array',
+             'additional_positions.*.id' => 'nullable|exists:emp_positions,id',
+             'additional_positions.*.position_name' => 'nullable|string|max:255',
+             'additional_positions.*.office_id' => 'nullable|exists:offices,id',
+-            'additional_positions.*.division_id' => 'nullable|exists:lib_divisions,id_division',
+-            'additional_positions.*.unit_id' => 'nullable|exists:lib_units,id',
+-            'additional_positions.*.subunit_id' => 'nullable|exists:lib_subunits,id_subunit',
+-            'additional_positions.*.class_id' => 'nullable|exists:lib_class,id_class',
++            'additional_positions.*.division_id' => 'nullable|exists:divisions,id',
++            'additional_positions.*.unit_id' => 'nullable|exists:units,id',
++            'additional_positions.*.subunit_id' => 'nullable|exists:subunits,id',
++            'additional_positions.*.class_id' => 'nullable|exists:class,id',
+         ]);
+ 
+         // Handle status properly
+@@ -729,7 +729,7 @@ public function getDivisionsByOffice(Request $request)
+             if ($divisions->count() > 0) {
+                 $sampleDivisions = $divisions->take(3)->map(function($division) {
+                     return [
+-                        'id_division' => $division->id_division,
++                        'id_division' => $division->id,
+                         'division_name' => $division->division_name
+                     ];
+                 });
+diff --git a/app/Http/Controllers/SubunitController.php b/app/Http/Controllers/SubunitController.php
+index d6eabf2..16e077c 100644
+--- a/app/Http/Controllers/SubunitController.php
++++ b/app/Http/Controllers/SubunitController.php
+@@ -18,11 +18,7 @@ class SubunitController extends Controller
+      */
+     public function index(Request $request): View|JsonResponse
+     {
+-        $query = Subunit::whereExists(function($q) {
+-            $q->select(DB::raw(1))
+-              ->from('lib_units')
+-              ->whereColumn('lib_units.id', 'lib_subunits.unit_id');
+-        })->with('unit');
++        $query = Subunit::with('unit');
+         
+         // Handle search
+         if ($request->has('search') && $request->search) {
+@@ -77,7 +73,7 @@ public function store(Request $request): RedirectResponse|JsonResponse
+             $request->validate([
+                 'subunit_name' => 'required|string|max:255',
+                 'subunit_abbr' => 'required|string|max:100',
+-                'unit_id' => 'required|exists:lib_units,id',
++                'unit_id' => 'required|exists:units,id',
+             ]);
+     
+             // Automatically set status to active (1) for new subunits
+@@ -90,10 +86,7 @@ public function store(Request $request): RedirectResponse|JsonResponse
+                 'subunit_name' => $request->subunit_name,
+                 'subunit_abbr' => $request->subunit_abbr,
+                 'unit_id' => $request->unit_id,
+-                'subunit_office' => $unit && $unit->division ? $unit->division->office_id : null,
+-                'subunit_division' => $unit && $unit->division ? $unit->division->id_division : null,
+                 'subunit_isactive' => $isActive,
+-                'subunit_updated_date' => now(), // Manually set the custom timestamp
+             ]);
+             
+             if ($request->wantsJson()) {
+@@ -140,7 +133,7 @@ public function update(Request $request, Subunit $subunit): RedirectResponse|Jso
+             $request->validate([
+                 'subunit_name' => 'required|string|max:255',
+                 'subunit_abbr' => 'required|string|max:100',
+-                'unit_id' => 'required|exists:lib_units,id',
++                'unit_id' => 'required|exists:units,id',
+                 'subunit_isactive' => 'boolean',
+             ]);
+     
+@@ -154,10 +147,7 @@ public function update(Request $request, Subunit $subunit): RedirectResponse|Jso
+                 'subunit_name' => $request->subunit_name,
+                 'subunit_abbr' => $request->subunit_abbr,
+                 'unit_id' => $request->unit_id,
+-                'subunit_office' => $unit && $unit->division ? $unit->division->office_id : null,
+-                'subunit_division' => $unit && $unit->division ? $unit->division->id_division : null,
+                 'subunit_isactive' => $isActive,
+-                'subunit_updated_date' => now(), // Manually set the custom timestamp
+             ]);
+             
+             if ($request->wantsJson()) {
+diff --git a/app/Http/Controllers/UnitController.php b/app/Http/Controllers/UnitController.php
+index 903681a..0161179 100644
+--- a/app/Http/Controllers/UnitController.php
++++ b/app/Http/Controllers/UnitController.php
+@@ -31,7 +31,7 @@ public function index(Request $request): View|JsonResponse
+         
+         // Handle division filter
+         if ($request->has('division') && $request->division !== 'all') {
+-            $query->where('unit_division', $request->division);
++            $query->where('division_id', $request->division);
+         }
+         
+         // Handle status filter
+@@ -78,7 +78,7 @@ public function store(Request $request): RedirectResponse|JsonResponse
+         $request->validate([
+             'unit_name' => 'required|string|max:255',
+             'unit_abbr' => 'required|string|max:100',
+-            'division_id' => 'required|exists:lib_divisions,id_division', // correct table
++            'division_id' => 'required|exists:divisions,id',
+             'unit_code' => 'required|string|max:5',
+             'unit_isactive' => 'boolean',
+         ]);
+@@ -93,8 +93,7 @@ public function store(Request $request): RedirectResponse|JsonResponse
+         $unit = Unit::create([
+             'unit_name' => $request->unit_name,
+             'unit_abbr' => $request->unit_abbr,
+-            'unit_division' => $request->division_id,
+-            'unit_office' => $division->office_id,
++            'division_id' => $request->division_id,
+             'unit_code' => $request->unit_code,
+             'unit_isactive' => $isActive,
+         ]);
+@@ -134,7 +133,7 @@ public function update(Request $request, $id)
+         $request->validate([
+             'unit_name' => 'required|string|max:255',
+             'unit_abbr' => 'required|string|max:100',
+-            'division_id' => 'required|exists:lib_divisions,id_division',
++            'division_id' => 'required|exists:divisions,id',
+             'unit_code' => 'required|string|max:5',
+             'unit_isactive' => 'boolean',
+         ]);
+@@ -145,7 +144,7 @@ public function update(Request $request, $id)
+             'unit_name' => $request->unit_name,
+             'unit_abbr' => $request->unit_abbr,
+             'unit_code' => $request->unit_code,
+-            'unit_division' => $request->division_id,
++            'division_id' => $request->division_id,
+             'unit_isactive' => $request->unit_isactive
+         ]);
+ 
+diff --git a/app/Models/ClassModel.php b/app/Models/ClassModel.php
+index 6c9e5bf..39b7325 100644
+--- a/app/Models/ClassModel.php
++++ b/app/Models/ClassModel.php
+@@ -9,48 +9,19 @@ class ClassModel extends Model
+ {
+     use HasFactory;
+ 
+-    /**
+-     * The table associated with the model.
+-     *
+-     * @var string
+-     */
+-    protected $table = 'lib_class';
+-    
+-    /**
+-     * The primary key for the model.
+-     *
+-     * @var string
+-     */
+-    protected $primaryKey = 'id_class';
+-    
+-    /**
+-     * Indicates if the IDs are auto-incrementing.
+-     *
+-     * @var bool
+-     */
+-    public $incrementing = true;
+-    
+-    /**
+-     * The "type" of the primary key ID.
+-     *
+-     * @var string
+-     */
+-    protected $keyType = 'int';
++    protected $table = 'class';
+ 
+-    /**
+-     * The attributes that are mass assignable.
+-     *
+-     * @var array<int, string>
+-     */
+     protected $fillable = [
+         'class_name',
+     ];
+ 
+-    /**
+-     * Get the employees for the class.
+-     */
++    public function getIdClassAttribute(): int
++    {
++        return (int) $this->id;
++    }
++
+     public function employees()
+     {
+         return $this->hasMany(Employee::class, 'class_id');
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Models/Division.php b/app/Models/Division.php
+index d1f1ca8..e58013e 100644
+--- a/app/Models/Division.php
++++ b/app/Models/Division.php
+@@ -9,88 +9,42 @@ class Division extends Model
+ {
+     use HasFactory;
+ 
+-    // Specify the correct table name
+-    protected $table = 'lib_divisions';
+-    
+-    // Specify the primary key
+-    protected $primaryKey = 'id_division';
+-    
+-    // Enable auto-incrementing since we fixed the table structure
+-    public $incrementing = true;
+-    
+-    // Specify the key type
+-    protected $keyType = 'int';
+-    
+-    // Disable Laravel's automatic timestamps
+-    public $timestamps = false;
+-    
+-    // Set updated_date automatically when saving
+-    protected static function boot()
+-    {
+-        parent::boot();
+-        
+-        static::creating(function ($model) {
+-            $model->updated_date = now();
+-        });
+-        
+-        static::updating(function ($model) {
+-            $model->updated_date = now();
+-        });
+-    }
++    protected $table = 'divisions';
+ 
+-    /**
+-     * The attributes that are mass assignable.
+-     *
+-     * @var array<int, string>
+-     */
+     protected $fillable = [
+         'division_name',
+         'division_abbr',
+         'office_id',
+         'division_code',
+         'division_isactive',
+-        'updated_date',
+     ];
+ 
+-    /**
+-     * The attributes that should be cast.
+-     *
+-     * @var array<string, string>
+-     */
+     protected $casts = [
+         'division_isactive' => 'boolean',
+-        'updated_date' => 'datetime',
+     ];
+ 
+-    /**
+-     * Get the office that owns the division.
+-     */
++    public function getIdDivisionAttribute(): int
++    {
++        return (int) $this->id;
++    }
++
+     public function office()
+     {
+         return $this->belongsTo(Office::class, 'office_id');
+     }
+ 
+-    /**
+-     * Get the employees for the division through positions.
+-     */
+     public function employees()
+     {
+-        return $this->hasManyThrough(Employee::class, EmpPosition::class, 'division_id', 'id', 'id_division', 'employee_id');
++        return $this->hasManyThrough(Employee::class, EmpPosition::class, 'division_id', 'id', 'id', 'employee_id');
+     }
+ 
+-    /**
+-     * Get the positions for the division.
+-     */
+     public function positions()
+     {
+         return $this->hasMany(EmpPosition::class, 'division_id');
+     }
+ 
+-    /**
+-     * Get the units for the division.
+-     */
+     public function units()
+     {
+-        return $this->hasMany(Unit::class, 'unit_division');
++        return $this->hasMany(Unit::class, 'division_id');
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Models/Employee.php b/app/Models/Employee.php
+index 4820529..e4c752a 100644
+--- a/app/Models/Employee.php
++++ b/app/Models/Employee.php
+@@ -134,7 +134,7 @@ public function office()
+      */
+     public function division()
+     {
+-        return $this->hasOneThrough(Division::class, EmpPosition::class, 'employee_id', 'id_division', 'id', 'division_id');
++        return $this->hasOneThrough(Division::class, EmpPosition::class, 'employee_id', 'id', 'id', 'division_id');
+     }
+ 
+     /**
+@@ -150,7 +150,7 @@ public function unit()
+      */
+     public function subunit()
+     {
+-        return $this->hasOneThrough(Subunit::class, EmpPosition::class, 'employee_id', 'id_subunit', 'id', 'subunit_id');
++        return $this->hasOneThrough(Subunit::class, EmpPosition::class, 'employee_id', 'id', 'id', 'subunit_id');
+     }
+ 
+     /**
+@@ -158,7 +158,7 @@ public function subunit()
+      */
+     public function class()
+     {
+-        return $this->hasOneThrough(ClassModel::class, EmpPosition::class, 'employee_id', 'id_class', 'id', 'class_id');
++        return $this->hasOneThrough(ClassModel::class, EmpPosition::class, 'employee_id', 'id', 'id', 'class_id');
+     }
+ 
+     /**
+diff --git a/app/Models/Subunit.php b/app/Models/Subunit.php
+index dae22c7..a556e6d 100644
+--- a/app/Models/Subunit.php
++++ b/app/Models/Subunit.php
+@@ -9,67 +9,36 @@ class Subunit extends Model
+ {
+     use HasFactory;
+ 
+-    // Specify the correct table name
+-    protected $table = 'lib_subunits';
+-    
+-    // Specify the primary key
+-    protected $primaryKey = 'id_subunit';
+-    
+-    // Disable auto-incrementing if needed
+-    public $incrementing = true;
+-    
+-    // Specify the key type
+-    protected $keyType = 'int';
+-    
+-    // Disable Laravel's default timestamps since table uses custom column names
+-    public $timestamps = false;
++    protected $table = 'subunits';
+ 
+-    /**
+-     * The attributes that are mass assignable.
+-     *
+-     * @var array<int, string>
+-     */
+     protected $fillable = [
+         'subunit_name',
+         'subunit_abbr',
+         'unit_id',
+-        'subunit_office',
+-        'subunit_division',
+         'subunit_isactive',
+-        'subunit_updated_date',
+     ];
+ 
+-    /**
+-     * The attributes that should be cast.
+-     *
+-     * @var array<string, string>
+-     */
+     protected $casts = [
+         'subunit_isactive' => 'boolean',
+-        'subunit_updated_date' => 'datetime',
+     ];
+ 
+-    /**
+-     * Get the unit that owns the subunit.
+-     */
++    public function getIdSubunitAttribute(): int
++    {
++        return (int) $this->id;
++    }
++
+     public function unit()
+     {
+         return $this->belongsTo(Unit::class, 'unit_id');
+     }
+ 
+-    /**
+-     * Get the employees for the subunit through positions.
+-     */
+     public function employees()
+     {
+         return $this->hasManyThrough(Employee::class, EmpPosition::class, 'subunit_id', 'id', 'id', 'employee_id');
+     }
+ 
+-    /**
+-     * Get the positions for the subunit.
+-     */
+     public function positions()
+     {
+         return $this->hasMany(EmpPosition::class, 'subunit_id');
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Models/Unit.php b/app/Models/Unit.php
+index 76540c4..aa1d21e 100644
+--- a/app/Models/Unit.php
++++ b/app/Models/Unit.php
+@@ -9,47 +9,33 @@ class Unit extends Model
+ {
+     use HasFactory;
+ 
+-    // Correct table name
+-    protected $table = 'lib_units';
+-    
+-    // ✅ Correct primary key
+-    protected $primaryKey = 'id';
+-    
+-    public $incrementing = true;
+-    protected $keyType = 'int';
+-    public $timestamps = true;
++    protected $table = 'units';
+ 
+     protected $fillable = [
+         'unit_name',
+         'unit_abbr',
+         'unit_code',
+-        'unit_office',
+-        'unit_division',
++        'division_id',
+         'unit_isactive',
+-        'unit_updated_date',
+     ];
+ 
+     protected $casts = [
+         'unit_isactive' => 'boolean',
+-        'unit_updated_date' => 'datetime',
+     ];
+ 
+-    protected static function boot()
++    public function getUnitDivisionAttribute(): ?int
+     {
+-        parent::boot();
+-
+-        static::creating(function ($unit) {
+-            $unit->unit_updated_date = now();
+-        });
++        return $this->division_id;
++    }
+ 
+-        static::updating(function ($unit) {
+-            $unit->unit_updated_date = now();
+-        });
++    public function setUnitDivisionAttribute($value): void
++    {
++        $this->attributes['division_id'] = $value;
+     }
+ 
+     public function division()
+     {
+-        return $this->belongsTo(Division::class, 'unit_division');
++        return $this->belongsTo(Division::class, 'division_id');
+     }
+ 
+     public function employees()
+@@ -66,4 +52,4 @@ public function subunits()
+     {
+         return $this->hasMany(Subunit::class, 'unit_id');
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/database/migrations/2026_01_20_000002_add_timestamps_to_officers_table.php b/database/migrations/2026_01_20_000002_add_timestamps_to_officers_table.php
+index 0107d0d..be9cce8 100644
+--- a/database/migrations/2026_01_20_000002_add_timestamps_to_officers_table.php
++++ b/database/migrations/2026_01_20_000002_add_timestamps_to_officers_table.php
+@@ -11,9 +11,11 @@
+      */
+     public function up(): void
+     {
+-        Schema::table('officers', function (Blueprint $table) {
+-            $table->timestamps();
+-        });
++        if (! Schema::hasColumn('officers', 'created_at')) {
++            Schema::table('officers', function (Blueprint $table) {
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2026_01_21_071999_create_emp_positions_table.php b/database/migrations/2026_01_21_071999_create_emp_positions_table.php
+new file mode 100644
+index 0000000..83075fe
+--- /dev/null
++++ b/database/migrations/2026_01_21_071999_create_emp_positions_table.php
+@@ -0,0 +1,37 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration
++{
++    /**
++     * Run the migrations.
++     */
++    public function up(): void
++    {
++        if (Schema::hasTable('emp_positions')) {
++            return;
++        }
++
++        Schema::create('emp_positions', function (Blueprint $table) {
++            $table->id();
++            $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
++            $table->foreignId('class_id')->nullable()->constrained('class')->nullOnDelete();
++            $table->foreignId('office_id')->nullable()->constrained('offices')->nullOnDelete();
++            $table->foreignId('division_id')->nullable()->constrained('divisions')->nullOnDelete();
++            $table->foreignId('unit_id')->nullable()->constrained('units')->nullOnDelete();
++            $table->foreignId('subunit_id')->nullable()->constrained('subunits')->nullOnDelete();
++            $table->timestamps();
++        });
++    }
++
++    /**
++     * Reverse the migrations.
++     */
++    public function down(): void
++    {
++        Schema::dropIfExists('emp_positions');
++    }
++};
+diff --git a/database/migrations/2026_01_21_142929_add_emp_position_id_to_travel_orders_table.php b/database/migrations/2026_01_21_142929_add_emp_position_id_to_travel_orders_table.php
+index 44905cd..a51eb77 100644
+--- a/database/migrations/2026_01_21_142929_add_emp_position_id_to_travel_orders_table.php
++++ b/database/migrations/2026_01_21_142929_add_emp_position_id_to_travel_orders_table.php
+@@ -12,7 +12,7 @@
+     public function up(): void
+     {
+         Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->integer('emp_position_id')->nullable();
++            $table->unsignedBigInteger('emp_position_id')->nullable();
+             $table->foreign('emp_position_id')->references('id')->on('emp_positions')->onDelete('set null');
+         });
+     }
+diff --git a/database/migrations/2026_01_21_143317_fix_emp_position_id_column_type.php b/database/migrations/2026_01_21_143317_fix_emp_position_id_column_type.php
+index 3144cce..b8cfbf8 100644
+--- a/database/migrations/2026_01_21_143317_fix_emp_position_id_column_type.php
++++ b/database/migrations/2026_01_21_143317_fix_emp_position_id_column_type.php
+@@ -1,8 +1,6 @@
+ <?php
+ 
+ use Illuminate\Database\Migrations\Migration;
+-use Illuminate\Database\Schema\Blueprint;
+-use Illuminate\Support\Facades\Schema;
+ 
+ return new class extends Migration
+ {
+@@ -11,24 +9,7 @@
+      */
+     public function up(): void
+     {
+-        // Drop the foreign key constraint if it exists
+-        try {
+-            Schema::table('travel_orders', function (Blueprint $table) {
+-                $table->dropForeign(['emp_position_id']);
+-            });
+-        } catch (\Exception $e) {
+-            // Foreign key might not exist, continue
+-        }
+-        
+-        // Drop the column and recreate it with the correct type
+-        Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->dropColumn('emp_position_id');
+-        });
+-        
+-        Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->integer('emp_position_id')->nullable();
+-            $table->foreign('emp_position_id')->references('id')->on('emp_positions')->onDelete('set null');
+-        });
++        // Legacy migration kept for ordering; column type is correct in 142929.
+     }
+ 
+     /**
+@@ -36,13 +17,6 @@ public function up(): void
+      */
+     public function down(): void
+     {
+-        Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->dropForeign(['emp_position_id']);
+-            $table->dropColumn('emp_position_id');
+-        });
+-        
+-        Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->unsignedBigInteger('emp_position_id')->nullable();
+-        });
++        //
+     }
+ };
+diff --git a/database/migrations/2026_01_26_063832_add_columns_to_itineraries_table.php b/database/migrations/2026_01_26_063832_add_columns_to_itineraries_table.php
+index 21cb905..5d816da 100644
+--- a/database/migrations/2026_01_26_063832_add_columns_to_itineraries_table.php
++++ b/database/migrations/2026_01_26_063832_add_columns_to_itineraries_table.php
+@@ -47,25 +47,6 @@ public function up(): void
+                 $table->string('status')->default('pending');
+             }
+         });
+-        
+-        // Add foreign keys separately to avoid issues - use 'vehicles' table name
+-        Schema::table('itineraries', function (Blueprint $table) {
+-            if (!Schema::hasTable('itineraries') || 
+-                (!Schema::getConnection()->getDoctrineSchemaManager()->introspectTable('itineraries')->hasForeignKey('itineraries_vehicle_id_foreign') &&
+-                 Schema::hasTable('vehicles'))) {
+-                $table->foreign('vehicle_id')->references('id')->on('vehicles')->onDelete('set null');
+-            }
+-            if (!Schema::hasTable('itineraries') || 
+-                (!Schema::getConnection()->getDoctrineSchemaManager()->introspectTable('itineraries')->hasForeignKey('itineraries_driver_id_foreign') &&
+-                 Schema::hasTable('drivers'))) {
+-                $table->foreign('driver_id')->references('id')->on('drivers')->onDelete('set null');
+-            }
+-            if (!Schema::hasTable('itineraries') || 
+-                (!Schema::getConnection()->getDoctrineSchemaManager()->introspectTable('itineraries')->hasForeignKey('itineraries_created_by_foreign') &&
+-                 Schema::hasTable('users'))) {
+-                $table->foreign('created_by')->references('id')->on('users')->onDelete('cascade');
+-            }
+-        });
+     }
+ 
+     /**
+@@ -73,24 +54,13 @@ public function up(): void
+      */
+     public function down(): void
+     {
+-        // Drop foreign key constraints first
+         Schema::table('itineraries', function (Blueprint $table) {
+-            try {
+-                $sm = Schema::getConnection()->getDoctrineSchemaManager();
+-                $doctrineTable = $sm->introspectTable('itineraries');
+-                
+-                // Check and drop foreign keys if they exist
+-                if ($doctrineTable->hasForeignKey('itineraries_vehicle_id_foreign')) {
+-                    $table->dropForeign(['vehicle_id']);
+-                }
+-                if ($doctrineTable->hasForeignKey('itineraries_driver_id_foreign')) {
+-                    $table->dropForeign(['driver_id']);
+-                }
+-                if ($doctrineTable->hasForeignKey('itineraries_created_by_foreign')) {
+-                    $table->dropForeign(['created_by']);
++            foreach (['vehicle_id', 'driver_id', 'created_by'] as $column) {
++                try {
++                    $table->dropForeign([$column]);
++                } catch (\Exception $e) {
++                    //
+                 }
+-            } catch (\Exception $e) {
+-                // If there's an exception, continue with dropping columns
+             }
+         });
+ 
+diff --git a/database/migrations/2026_01_27_054836_update_trip_tickets_table_structure.php b/database/migrations/2026_01_27_054836_update_trip_tickets_table_structure.php
+index 5376087..099a669 100644
+--- a/database/migrations/2026_01_27_054836_update_trip_tickets_table_structure.php
++++ b/database/migrations/2026_01_27_054836_update_trip_tickets_table_structure.php
+@@ -11,6 +11,12 @@
+      */
+     public function up(): void
+     {
++        if (Schema::hasColumn('trip_tickets', 'travel_order_id')) {
++            Schema::table('trip_tickets', function (Blueprint $table) {
++                $table->dropForeign(['travel_order_id']);
++            });
++        }
++
+         Schema::table('trip_tickets', function (Blueprint $table) {
+             // Drop unnecessary columns
+             $columnsToDrop = [
+@@ -19,19 +25,16 @@ public function up(): void
+                 'vp_approved_at',
+                 'vp_declined',
+                 'vp_declined_at',
+-                'trip_document'
++                'trip_document',
+             ];
+-            
++
+             foreach ($columnsToDrop as $column) {
+                 if (Schema::hasColumn('trip_tickets', $column)) {
+                     $table->dropColumn($column);
+                 }
+             }
+-            
+-            // Update status column if it exists but has wrong values
+-            if (Schema::hasColumn('trip_tickets', 'status')) {
+-                $table->enum('status', ['Pending', 'Approved', 'Completed', 'Cancelled'])->default('Pending')->change();
+-            } else {
++
++            if (! Schema::hasColumn('trip_tickets', 'status')) {
+                 $table->enum('status', ['Pending', 'Approved', 'Completed', 'Cancelled'])->default('Pending');
+             }
+         });
+diff --git a/database/migrations/2026_01_27_055310_drop_trip_tickets_foreign_keys.php b/database/migrations/2026_01_27_055310_drop_trip_tickets_foreign_keys.php
+index ce3bdc4..d385786 100644
+--- a/database/migrations/2026_01_27_055310_drop_trip_tickets_foreign_keys.php
++++ b/database/migrations/2026_01_27_055310_drop_trip_tickets_foreign_keys.php
+@@ -2,6 +2,7 @@
+ 
+ use Illuminate\Database\Migrations\Migration;
+ use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\DB;
+ use Illuminate\Support\Facades\Schema;
+ 
+ return new class extends Migration
+@@ -11,18 +12,21 @@
+      */
+     public function up(): void
+     {
+-        Schema::table('trip_tickets', function (Blueprint $table) {
+-            // Drop foreign key constraints
+-            try {
++        $foreignKeys = collect(DB::select("
++            SELECT CONSTRAINT_NAME
++            FROM information_schema.TABLE_CONSTRAINTS
++            WHERE TABLE_SCHEMA = DATABASE()
++              AND TABLE_NAME = 'trip_tickets'
++              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
++        "))->pluck('CONSTRAINT_NAME')->all();
++
++        Schema::table('trip_tickets', function (Blueprint $table) use ($foreignKeys) {
++            if (in_array('trip_tickets_travel_order_id_foreign', $foreignKeys, true)) {
+                 $table->dropForeign(['travel_order_id']);
+-            } catch (\Exception $e) {
+-                // Foreign key may not exist, continue
+             }
+-            
+-            try {
++
++            if (in_array('trip_tickets_itinerary_id_foreign', $foreignKeys, true)) {
+                 $table->dropForeign(['itinerary_id']);
+-            } catch (\Exception $e) {
+-                // Foreign key may not exist, continue
+             }
+         });
+     }
+@@ -32,9 +36,6 @@ public function up(): void
+      */
+     public function down(): void
+     {
+-        Schema::table('trip_tickets', function (Blueprint $table) {
+-            // Restore foreign key constraints if needed
+-            // Note: We won't restore them here as the main migration will handle that
+-        });
++        //
+     }
+ };
+diff --git a/database/migrations/2026_01_30_074352_recreate_drivers_table_with_new_schema.php b/database/migrations/2026_01_30_074352_recreate_drivers_table_with_new_schema.php
+index 1616d76..575bf70 100644
+--- a/database/migrations/2026_01_30_074352_recreate_drivers_table_with_new_schema.php
++++ b/database/migrations/2026_01_30_074352_recreate_drivers_table_with_new_schema.php
+@@ -2,6 +2,7 @@
+ 
+ use Illuminate\Database\Migrations\Migration;
+ use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\DB;
+ use Illuminate\Support\Facades\Schema;
+ 
+ return new class extends Migration
+@@ -12,20 +13,36 @@
+     public function up(): void
+     {
+         Schema::table('drivers', function (Blueprint $table) {
+-            // Drop columns that don't match the new schema
+-            $table->dropColumn(['ext_name', 'sex', 'prefix']);
+-            
+-            // Rename first_name to firsts_name to match your schema
+-            $table->renameColumn('first_name', 'firsts_name');
+-            
+-            // Add missing columns to match your exact schema
+-            $table->string('contact_num')->after('full_name2');
+-            $table->string('email')->after('contact_num');
+-            $table->string('password')->after('email');
+-            $table->text('address')->after('password');
+-            $table->string('position')->after('address');
+-            $table->string('official_station')->after('position');
+-            $table->string('availability_status')->default('Available')->after('official_station');
++            $columnsToDrop = array_values(array_filter(
++                ['ext_name', 'sex', 'prefix'],
++                fn (string $column) => Schema::hasColumn('drivers', $column)
++            ));
++
++            if ($columnsToDrop !== []) {
++                $table->dropColumn($columnsToDrop);
++            }
++        });
++
++        if (Schema::hasColumn('drivers', 'first_name') && ! Schema::hasColumn('drivers', 'firsts_name')) {
++            DB::statement('ALTER TABLE drivers CHANGE first_name firsts_name VARCHAR(255) NULL');
++        }
++
++        Schema::table('drivers', function (Blueprint $table) {
++            $columns = [
++                'contact_num' => fn (Blueprint $table) => $table->string('contact_num')->nullable(),
++                'email' => fn (Blueprint $table) => $table->string('email')->nullable(),
++                'password' => fn (Blueprint $table) => $table->string('password')->nullable(),
++                'address' => fn (Blueprint $table) => $table->text('address')->nullable(),
++                'position' => fn (Blueprint $table) => $table->string('position')->nullable(),
++                'official_station' => fn (Blueprint $table) => $table->string('official_station')->nullable(),
++                'availability_status' => fn (Blueprint $table) => $table->string('availability_status')->default('Available'),
++            ];
++
++            foreach ($columns as $column => $callback) {
++                if (! Schema::hasColumn('drivers', $column)) {
++                    $callback($table);
++                }
++            }
+         });
+     }
+ 
+@@ -34,25 +51,6 @@ public function up(): void
+      */
+     public function down(): void
+     {
+-        Schema::table('drivers', function (Blueprint $table) {
+-            // Drop the new columns
+-            $table->dropColumn([
+-                'contact_num',
+-                'email',
+-                'password',
+-                'address',
+-                'position',
+-                'official_station',
+-                'availability_status'
+-            ]);
+-            
+-            // Rename firsts_name back to first_name
+-            $table->renameColumn('firsts_name', 'first_name');
+-            
+-            // Recreate the dropped columns
+-            $table->string('ext_name')->nullable()->after('last_name');
+-            $table->string('sex')->nullable()->after('ext_name');
+-            $table->string('prefix')->nullable()->after('sex');
+-        });
++        //
+     }
+-};
+\ No newline at end of file
++};
+diff --git a/database/migrations/2026_02_25_061627_fix_lib_divisions_primary_key.php b/database/migrations/2026_02_25_061627_fix_lib_divisions_primary_key.php
+index c84f14c..8ed040f 100644
+--- a/database/migrations/2026_02_25_061627_fix_lib_divisions_primary_key.php
++++ b/database/migrations/2026_02_25_061627_fix_lib_divisions_primary_key.php
+@@ -11,6 +11,10 @@
+      */
+     public function up(): void
+     {
++        if (! Schema::hasTable('lib_divisions')) {
++            return;
++        }
++
+         Schema::table('lib_divisions', function (Blueprint $table) {
+             // Make id_division auto-incrementing
+             $table->unsignedBigInteger('id_division', true)->change();
+diff --git a/database/migrations/2026_02_25_061758_fix_lib_divisions_table_structure.php b/database/migrations/2026_02_25_061758_fix_lib_divisions_table_structure.php
+index 7a20ca1..5355537 100644
+--- a/database/migrations/2026_02_25_061758_fix_lib_divisions_table_structure.php
++++ b/database/migrations/2026_02_25_061758_fix_lib_divisions_table_structure.php
+@@ -11,6 +11,10 @@
+      */
+     public function up(): void
+     {
++        if (! Schema::hasTable('lib_divisions')) {
++            return;
++        }
++
+         // First, make sure the id_division column is a primary key and auto-incrementing
+         DB::statement('ALTER TABLE lib_divisions MODIFY id_division BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY');
+     }
+diff --git a/database/migrations/2026_02_25_153905_fix_subunits_auto_increment.php b/database/migrations/2026_02_25_153905_fix_subunits_auto_increment.php
+index 166eecf..3fa41b1 100644
+--- a/database/migrations/2026_02_25_153905_fix_subunits_auto_increment.php
++++ b/database/migrations/2026_02_25_153905_fix_subunits_auto_increment.php
+@@ -11,6 +11,10 @@
+      */
+     public function up(): void
+     {
++        if (! Schema::hasTable('lib_subunits')) {
++            return;
++        }
++
+         Schema::table('lib_subunits', function (Blueprint $table) {
+             //
+         });
+diff --git a/database/migrations/2026_02_26_012224_fix_lib_subunits_table_primary_key.php b/database/migrations/2026_02_26_012224_fix_lib_subunits_table_primary_key.php
+index 166eecf..3fa41b1 100644
+--- a/database/migrations/2026_02_26_012224_fix_lib_subunits_table_primary_key.php
++++ b/database/migrations/2026_02_26_012224_fix_lib_subunits_table_primary_key.php
+@@ -11,6 +11,10 @@
+      */
+     public function up(): void
+     {
++        if (! Schema::hasTable('lib_subunits')) {
++            return;
++        }
++
+         Schema::table('lib_subunits', function (Blueprint $table) {
+             //
+         });
+diff --git a/database/migrations/2026_02_26_034302_fix_lib_class_table_structure.php b/database/migrations/2026_02_26_034302_fix_lib_class_table_structure.php
+index fc95830..a88bd0c 100644
+--- a/database/migrations/2026_02_26_034302_fix_lib_class_table_structure.php
++++ b/database/migrations/2026_02_26_034302_fix_lib_class_table_structure.php
+@@ -11,6 +11,10 @@
+      */
+     public function up(): void
+     {
++        if (! Schema::hasTable('lib_class')) {
++            return;
++        }
++
+         Schema::table('lib_class', function (Blueprint $table) {
+             //
+         });
+diff --git a/database/migrations/2026_03_05_120000_add_missing_vp_approved_column.php b/database/migrations/2026_03_05_120000_add_missing_vp_approved_column.php
+index 6b08310..d3d5dcc 100644
+--- a/database/migrations/2026_03_05_120000_add_missing_vp_approved_column.php
++++ b/database/migrations/2026_03_05_120000_add_missing_vp_approved_column.php
+@@ -12,17 +12,21 @@
+     public function up(): void
+     {
+         Schema::table('travel_orders', function (Blueprint $table) {
+-            // Add vp_approved column
+-            $table->boolean('vp_approved')->nullable()->after('divisionhead_approved_at');
+-            
+-            // Add vp_approved_at column
+-            $table->dateTime('vp_approved_at')->nullable()->after('vp_approved');
+-            
+-            // Add vp_declined column
+-            $table->boolean('vp_declined')->nullable()->after('vp_approved_at');
+-            
+-            // Add vp_declined_at column
+-            $table->dateTime('vp_declined_at')->nullable()->after('vp_declined');
++            if (! Schema::hasColumn('travel_orders', 'vp_approved')) {
++                $table->boolean('vp_approved')->nullable()->after('divisionhead_approved_at');
++            }
++
++            if (! Schema::hasColumn('travel_orders', 'vp_approved_at')) {
++                $table->dateTime('vp_approved_at')->nullable()->after('vp_approved');
++            }
++
++            if (! Schema::hasColumn('travel_orders', 'vp_declined')) {
++                $table->boolean('vp_declined')->nullable()->after('vp_approved_at');
++            }
++
++            if (! Schema::hasColumn('travel_orders', 'vp_declined_at')) {
++                $table->dateTime('vp_declined_at')->nullable()->after('vp_declined');
++            }
+         });
+     }
+ 
+@@ -32,7 +36,14 @@ public function up(): void
+     public function down(): void
+     {
+         Schema::table('travel_orders', function (Blueprint $table) {
+-            $table->dropColumn(['vp_approved', 'vp_approved_at', 'vp_declined', 'vp_declined_at']);
++            $columns = array_values(array_filter(
++                ['vp_approved', 'vp_approved_at', 'vp_declined', 'vp_declined_at'],
++                fn (string $column) => Schema::hasColumn('travel_orders', $column)
++            ));
++
++            if ($columns !== []) {
++                $table->dropColumn($columns);
++            }
+         });
+     }
+ };
+diff --git a/database/migrations/2026_03_08_000000_add_rejection_columns_to_itineraries_table.php b/database/migrations/2026_03_08_000000_add_rejection_columns_to_itineraries_table.php
+index e69de29..8312e5f 100644
+--- a/database/migrations/2026_03_08_000000_add_rejection_columns_to_itineraries_table.php
++++ b/database/migrations/2026_03_08_000000_add_rejection_columns_to_itineraries_table.php
+@@ -0,0 +1,49 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration
++{
++    /**
++     * Run the migrations.
++     */
++    public function up(): void
++    {
++        Schema::table('itineraries', function (Blueprint $table) {
++            if (! Schema::hasColumn('itineraries', 'rejection_reason')) {
++                $table->text('rejection_reason')->nullable();
++            }
++
++            if (! Schema::hasColumn('itineraries', 'rejected_by_employee_id')) {
++                $table->foreignId('rejected_by_employee_id')->nullable()->constrained('employees')->nullOnDelete();
++            }
++
++            if (! Schema::hasColumn('itineraries', 'rejected_at')) {
++                $table->dateTime('rejected_at')->nullable();
++            }
++        });
++    }
++
++    /**
++     * Reverse the migrations.
++     */
++    public function down(): void
++    {
++        Schema::table('itineraries', function (Blueprint $table) {
++            if (Schema::hasColumn('itineraries', 'rejected_by_employee_id')) {
++                $table->dropForeign(['rejected_by_employee_id']);
++            }
++
++            $columns = array_values(array_filter(
++                ['rejection_reason', 'rejected_by_employee_id', 'rejected_at'],
++                fn (string $column) => Schema::hasColumn('itineraries', $column)
++            ));
++
++            if ($columns !== []) {
++                $table->dropColumn($columns);
++            }
++        });
++    }
++};
+diff --git a/database/migrations/2026_03_09_000001_change_travel_order_id_to_json_in_itineraries_table.php b/database/migrations/2026_03_09_000001_change_travel_order_id_to_json_in_itineraries_table.php
+index a7c99bc..84fa9cf 100644
+--- a/database/migrations/2026_03_09_000001_change_travel_order_id_to_json_in_itineraries_table.php
++++ b/database/migrations/2026_03_09_000001_change_travel_order_id_to_json_in_itineraries_table.php
+@@ -2,8 +2,8 @@
+ 
+ use Illuminate\Database\Migrations\Migration;
+ use Illuminate\Database\Schema\Blueprint;
+-use Illuminate\Support\Facades\Schema;
+ use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
+ 
+ return new class extends Migration
+ {
+@@ -12,12 +12,24 @@
+      */
+     public function up(): void
+     {
+-        Schema::table('itineraries', function (Blueprint $table) {
+-            // Drop the foreign key constraint if it exists
+-            $table->dropForeign(['travel_order_id']);
+-        });
+-        
+-        // Now change the column type to JSON
++        if (! Schema::hasColumn('itineraries', 'travel_order_id')) {
++            return;
++        }
++
++        $foreignKeys = collect(DB::select("
++            SELECT CONSTRAINT_NAME
++            FROM information_schema.TABLE_CONSTRAINTS
++            WHERE TABLE_SCHEMA = DATABASE()
++              AND TABLE_NAME = 'itineraries'
++              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
++        "))->pluck('CONSTRAINT_NAME')->all();
++
++        if (in_array('itineraries_travel_order_id_foreign', $foreignKeys, true)) {
++            Schema::table('itineraries', function (Blueprint $table) {
++                $table->dropForeign(['travel_order_id']);
++            });
++        }
++
+         DB::statement('ALTER TABLE itineraries MODIFY COLUMN travel_order_id JSON NULL');
+     }
+ 
+@@ -26,13 +38,10 @@ public function up(): void
+      */
+     public function down(): void
+     {
+-        Schema::table('itineraries', function (Blueprint $table) {
+-            // Convert back to unsignedBigInteger - this will lose data if there are arrays
+-            // For safety, we'll just revert to the original type
+-            $table->unsignedBigInteger('travel_order_id')->nullable()->change();
+-            
+-            // Re-add foreign key if needed
+-            // $table->foreign('travel_order_id')->references('id')->on('travel_orders')->nullOnDelete();
+-        });
++        if (! Schema::hasColumn('itineraries', 'travel_order_id')) {
++            return;
++        }
++
++        DB::statement('ALTER TABLE itineraries MODIFY COLUMN travel_order_id BIGINT UNSIGNED NULL');
+     }
+ };
+diff --git a/database/migrations/2026_03_25_091754_add_completion_file_link_to_trip_tickets_table.php b/database/migrations/2026_03_25_091754_add_completion_file_link_to_trip_tickets_table.php
+index 6e30498..52168b7 100644
+--- a/database/migrations/2026_03_25_091754_add_completion_file_link_to_trip_tickets_table.php
++++ b/database/migrations/2026_03_25_091754_add_completion_file_link_to_trip_tickets_table.php
+@@ -12,7 +12,13 @@
+     public function up(): void
+     {
+         Schema::table('trip_tickets', function (Blueprint $table) {
+-            $table->string('completion_file_link')->nullable()->after('completion_file');
++            if (! Schema::hasColumn('trip_tickets', 'completion_file')) {
++                $table->string('completion_file')->nullable();
++            }
++
++            if (! Schema::hasColumn('trip_tickets', 'completion_file_link')) {
++                $table->string('completion_file_link')->nullable();
++            }
+         });
+     }
+ 
+@@ -22,7 +28,14 @@ public function up(): void
+     public function down(): void
+     {
+         Schema::table('trip_tickets', function (Blueprint $table) {
+-            $table->dropColumn('completion_file_link');
++            $columns = array_values(array_filter(
++                ['completion_file_link'],
++                fn (string $column) => Schema::hasColumn('trip_tickets', $column)
++            ));
++
++            if ($columns !== []) {
++                $table->dropColumn($columns);
++            }
+         });
+     }
+ };
+diff --git a/database/seeders/DriverSeeder.php b/database/seeders/DriverSeeder.php
+index 4112e04..e5ecd76 100644
+--- a/database/seeders/DriverSeeder.php
++++ b/database/seeders/DriverSeeder.php
+@@ -42,7 +42,7 @@ public function run(): void
+                 'availability_status' => 'Available',
+             ],
+             [
+-                'firsts_name' => 'Wilson',
++                'first_name' => 'Wilson',
+                 'middle_initial' => 'K',
+                 'last_name' => 'Dacumos',
+                 'contact_num' => '09554263129',
+@@ -81,9 +81,11 @@ public function run(): void
+ 
+         // Create driver users and driver records
+         foreach ($drivers as $index => $driverData) {
++            $firstName = $driverData['first_name'] ?? $driverData['firsts_name'];
++
+             // Create a user for each driver
+             $user = User::create([
+-                'name' => $driverData['firsts_name'] . ' ' . $driverData['last_name'],
++                'name' => $firstName.' '.$driverData['last_name'],
+                 'email' => $driverData['email'],
+                 'password' => Hash::make($driverData['password']),
+                 'role' => 'driver',
+@@ -92,14 +94,11 @@ public function run(): void
+             // Create the driver record with user_id
+             Driver::create([
+                 'user_id' => $user->id,
+-                'firsts_name' => $driverData['firsts_name'],
++                'first_name' => $firstName,
+                 'middle_initial' => $driverData['middle_initial'],
+                 'last_name' => $driverData['last_name'],
+-                'full_name' => $driverData['firsts_name'] . ' ' . $driverData['last_name'],
+-                'full_name2' => $driverData['firsts_name'] . ' ' . $driverData['middle_initial'] . '. ' . $driverData['last_name'],
+-                'contact_num' => $driverData['contact_num'],
+-                'email' => $driverData['email'],
+-                'password' => Hash::make($driverData['password']),
++                'full_name' => $firstName.' '.$driverData['last_name'],
++                'full_name2' => $firstName.' '.$driverData['middle_initial'].'. '.$driverData['last_name'],
+                 'address' => $driverData['address'],
+                 'position' => $driverData['position'],
+                 'official_station' => $driverData['official_station'],
+diff --git a/database/seeders/ItinerarySeeder.php b/database/seeders/ItinerarySeeder.php
+index fd89a7b..4c4e79b 100644
+--- a/database/seeders/ItinerarySeeder.php
++++ b/database/seeders/ItinerarySeeder.php
+@@ -2,11 +2,10 @@
+ 
+ namespace Database\Seeders;
+ 
+-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+-use Illuminate\Database\Seeder;
+ use App\Models\Itinerary;
+ use App\Models\User;
+ use Carbon\Carbon;
++use Illuminate\Database\Seeder;
+ 
+ class ItinerarySeeder extends Seeder
+ {
+@@ -16,27 +15,26 @@ class ItinerarySeeder extends Seeder
+     public function run(): void
+     {
+         $users = User::all();
+-        
++
+         if ($users->isEmpty()) {
+             return;
+         }
+-        
++
+         $statuses = ['pending', 'approved', 'cancelled'];
+-        
++
+         for ($i = 0; $i < 10; $i++) {
++            $startDate = Carbon::now()->addDays(rand(1, 30));
++
+             Itinerary::create([
+-                'title' => 'Meeting at ' . ['Office A', 'Office B', 'Conference Room'][rand(0, 2)],
+-                'description' => 'Regular meeting with department heads',
+-                'date' => Carbon::now()->addDays(rand(1, 30)),
+-                'start_time' => Carbon::createFromTime(rand(8, 16), 0, 0),
+-                'end_time' => Carbon::createFromTime(rand(17, 20), 0, 0),
++                'date_from' => $startDate->toDateString(),
++                'date_to' => $startDate->copy()->addDays(rand(0, 2))->toDateString(),
++                'departure_time' => Carbon::createFromTime(rand(8, 16), 0, 0)->format('H:i:s'),
+                 'destination' => ['Manila', 'Quezon City', 'Makati'][rand(0, 2)],
+                 'purpose' => 'Business meeting with stakeholders',
+                 'vehicle_id' => null,
+                 'driver_id' => null,
+-                'created_by' => $users->random()->id,
+                 'status' => $statuses[rand(0, 2)],
+             ]);
+         }
+     }
+-}
+\ No newline at end of file
++}

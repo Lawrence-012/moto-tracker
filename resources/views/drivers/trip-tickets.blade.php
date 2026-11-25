@@ -54,6 +54,11 @@
                            style="text-decoration: none;">
                             Pending
                         </a>
+                        <a href="{{ route('driver.trip-tickets', ['tab' => 'ongoing']) }}" 
+                           class="{{ ($tab ?? 'pending') == 'ongoing' ? 'border-sky-600 text-sky-700 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-2 px-1 border-b-2 text-xs sm:text-sm transition-colors duration-200 no-underline"
+                           data-tab-switch="ongoing">
+                            Ongoing
+                        </a>
                         <a href="{{ route('driver.trip-tickets', ['tab' => 'completed']) }}" 
                            class="{{ ($tab ?? 'pending') == 'completed' ? 'border-green-500 text-green-600 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }} whitespace-nowrap py-2 px-1 border-b-2 text-xs sm:text-sm transition-colors duration-200 no-underline"
                            data-tab-switch="completed"
@@ -86,7 +91,8 @@
                             </thead>
                             <tbody>
                                 @foreach($tripTickets as $index => $ticket)
-                                    <tr class="{{ $loop->even ? 'bg-gray-50' : 'bg-white' }} hover:bg-[#f0f8f0]">
+                                    <tr class="{{ $loop->even ? 'bg-gray-50' : 'bg-white' }} hover:bg-[#f0f8f0] cursor-pointer"
+                                        onclick="if (!event.target.closest('button, a')) viewTripTicketDetails({{ $ticket->id }})">
                                         <td class="px-3 py-2 whitespace-nowrap text-sm font-medium">{{ $loop->iteration }}</td>
                                         <td class="px-3 py-2 whitespace-nowrap text-xs">
                                             <span class="text-gray-700 font-medium">{{ $ticket->ticket_number }}</span>
@@ -207,7 +213,7 @@
                                                     </span>
                                                 @elseif($ticket->status === 'On-Going')
                                                     <span class="inline-flex items-center px-2 py-1 rounded border border-blue-300 text-blue-700 bg-blue-50 text-[11px] font-semibold">
-                                                        <i class="fas fa-satellite-dish mr-1"></i> GPS Tracking
+                                                        <i class="fas fa-route mr-1"></i> On the way
                                                     </span>
                                                 @endif
                                             </div>

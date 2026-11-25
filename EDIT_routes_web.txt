@@ -1,0 +1,16 @@
+EDIT routes/web.php  (remove 3 lines)
+======================================
+Find this block (around line 2113):
+
+    Route::get('/login', function () {
+        return view('auth.login');
+    })->name('login');
+
+DELETE those 3 lines. The login route in routes/auth.php is inside the "guest"
+middleware, so logged-in users are redirected to the dashboard instead of the
+login page. Keep everything else in web.php as it is.
+
+Then run:
+    php artisan route:clear
+    php artisan config:clear
+    php artisan route:list --name=login

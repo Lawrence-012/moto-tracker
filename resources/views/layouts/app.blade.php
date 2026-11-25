@@ -90,6 +90,5 @@
             </main>
         </div>
 
-        @include('partials.driver-location-tracker')
     </body>
 </html>

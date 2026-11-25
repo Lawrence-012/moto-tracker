@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 
 class Vehicle extends Model
@@ -44,6 +45,14 @@ class Vehicle extends Model
         'mileage' => 'integer',
         'last_maintenance_mileage' => 'integer',
     ];
+
+    /**
+     * The one dashcam registered to this vehicle (a vehicle has at most one).
+     */
+    public function dashcam(): HasOne
+    {
+        return $this->hasOne(Dashcam::class);
+    }
 
     /**
      * Get the itineraries for the vehicle.
@@ -134,7 +143,41 @@ class Vehicle extends Model
      */
     public function hasExceededMaintenanceThreshold(): bool
     {
-        return $this->getKilometersSinceLastMaintenance() >= 5000;
+        // Use the last completed oil change's interval (5,000 or 10,000 km and/or 3 or 6 months).
+        // If there is no oil change record yet, keep the original 5,000 km rule.
+        $last = $this->lastOilChange();
+        if (!$last) {
+            return $this->getKilometersSinceLastMaintenance() >= 5000;
+        }
+
+        $baseline = (int) ($last->odometer_reading ?? $this->last_maintenance_mileage ?? 0);
+        $intervalKm = (int) ($last->oil_interval_km ?: 5000);
+        if ((int) $this->mileage - $baseline >= $intervalKm) {
+            return true;
+        }
+
+        if ($last->oil_interval_months && $last->date_completed) {
+            $due = \Carbon\Carbon::parse($last->date_completed)->addMonths((int) $last->oil_interval_months);
+            return $due->lte(\Carbon\Carbon::today());
+        }
+
+        return false;
+    }
+
+    /**
+     * Latest completed oil change record for this vehicle.
+     */
+    public function lastOilChange()
+    {
+        return $this->maintenanceRecords()
+            ->where('status', 'Completed')
+            ->where(function ($q) {
+                $q->whereRaw('LOWER(nature_of_work) LIKE ?', ['%change oil%'])
+                  ->orWhereRaw('LOWER(nature_of_work) LIKE ?', ['%oil change%']);
+            })
+            ->orderByDesc('date_completed')
+            ->orderByDesc('id')
+            ->first();
     }
     
     /**

@@ -3,7 +3,20 @@
         $rowNumber = ($vehicles->currentPage() - 1) * $vehicles->perPage() + $index + 1;
     @endphp
     {{-- DEBUG: Page {{ $vehicles->currentPage() }} | PerPage: {{ $vehicles->perPage() }} | Index: {{ $index }} | Calculated: {{ $rowNumber }} --}}
-    <tr class="{{ $loop->even ? 'bg-gray-50' : 'bg-white' }} {{ $vehicle->hasActiveMaintenanceIssues() ? 'bg-red-100' : '' }} {{ $vehicle->needsOilChange() && !$vehicle->isOilChangeNotificationDismissed() ? 'bg-orange-50' : '' }} hover:bg-[#f0f8f0]">
+    @php
+        $hasIssue = $vehicle->hasActiveMaintenanceIssues();
+        // Highlight the whole row whenever the vehicle needs oil change, even if the
+        // bell alert was dismissed. Dismissing only hides the notification.
+        $oilDue = $vehicle->needsOilChange();
+        if ($hasIssue) {
+            $rowClass = 'bg-red-100';
+        } elseif ($oilDue) {
+            $rowClass = 'bg-amber-50';
+        } else {
+            $rowClass = $loop->even ? 'bg-gray-50' : 'bg-white';
+        }
+    @endphp
+    <tr class="{{ $rowClass }} hover:bg-[#f0f8f0]">
         <td class="px-3 py-2 whitespace-nowrap text-sm font-medium">{{ $rowNumber }}</td>
         <td class="px-3 py-2 whitespace-nowrap">
             <div class="flex items-center gap-2">
@@ -14,7 +27,7 @@
                     </span>
                 @endif
                 @if($vehicle->needsOilChange() && !$vehicle->isOilChangeNotificationDismissed())
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border-2 border-orange-300" title="Needs oil change - exceeded 5000 km since last service">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border-2 border-red-300" title="Needs oil change - exceeded 5000 km since last service">
                         <i class="fas fa-oil-can mr-1"></i>Needs Oil Change
                     </span>
                 @endif

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\VehicleMaintenance;
 use App\Models\Vehicle;
 use App\Models\DismissedOilChangeNotification;
+use App\Models\DismissedMaintenanceNotification;
+use App\Models\NotificationRead;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -80,6 +82,9 @@ class VehicleMaintenanceController extends Controller
             'person_office_unit' => 'required|string|max:255',
             'place' => 'required|string|max:255',
             'nature_of_work' => 'required|string',
+            'remarks' => 'nullable|string|max:2000',
+            'oil_interval_km' => 'nullable|in:5000,10000',
+            'oil_interval_months' => 'nullable|in:3,6',
             'materials_parts.*' => 'nullable|string|max:255',
             'mechanic_assigned.*' => 'required|string|max:255',
         ]);
@@ -102,6 +107,9 @@ class VehicleMaintenanceController extends Controller
         
         VehicleMaintenance::create([
             'vehicle_id' => $request->vehicle_id,
+            'remarks' => $request->remarks,
+            'oil_interval_km' => $request->oil_interval_km,
+            'oil_interval_months' => $request->oil_interval_months,
             'date_started' => $request->date_started,
             'make_or_type' => $request->make_or_type,
             'person_office_unit' => $request->person_office_unit,
@@ -315,15 +323,20 @@ class VehicleMaintenanceController extends Controller
             ->orderBy('date_started', 'asc')
             ->get();
 
-        // Which oil-change vehicles the current admin has already dismissed from the bell
+        // Which oil-change vehicles / work orders the current admin has removed from the bell
         $dismissedVehicleIds = DismissedOilChangeNotification::where('user_id', auth()->id())
             ->pluck('vehicle_id')
+            ->toArray();
+
+        $dismissedMaintenanceIds = DismissedMaintenanceNotification::where('user_id', auth()->id())
+            ->pluck('vehicle_maintenance_id')
             ->toArray();
 
         return view('vehicle-maintenance.needed', compact(
             'oilChangeVehicles',
             'maintenanceRecords',
-            'dismissedVehicleIds'
+            'dismissedVehicleIds',
+            'dismissedMaintenanceIds'
         ));
     }
 
@@ -334,6 +347,11 @@ class VehicleMaintenanceController extends Controller
      */
     public function notifications(): JsonResponse
     {
+        $readOil = NotificationRead::where('user_id', auth()->id())
+            ->where('type', 'oil_change')->pluck('ref_id')->toArray();
+        $readMaint = NotificationRead::where('user_id', auth()->id())
+            ->where('type', 'maintenance_record')->pluck('ref_id')->toArray();
+
         $dismissedVehicleIds = DismissedOilChangeNotification::where('user_id', auth()->id())
             ->pluck('vehicle_id')
             ->toArray();
@@ -346,9 +364,10 @@ class VehicleMaintenanceController extends Controller
                 return $vehicle->needsOilChange();
             })
             ->values()
-            ->map(function (Vehicle $vehicle) {
+            ->map(function (Vehicle $vehicle) use ($readOil) {
                 return [
                     'type' => 'oil_change',
+                    'read' => in_array($vehicle->id, $readOil),
                     'vehicle_id' => $vehicle->id,
                     'plate_number' => $vehicle->plate_number,
                     'model' => $vehicle->model,
@@ -358,13 +377,19 @@ class VehicleMaintenanceController extends Controller
                 ];
             });
 
+        $dismissedMaintenanceIds = DismissedMaintenanceNotification::where('user_id', auth()->id())
+            ->pluck('vehicle_maintenance_id')
+            ->toArray();
+
         $maintenance = VehicleMaintenance::with('vehicle')
             ->whereIn('status', ['Need Maintenance', 'Under Maintenance'])
+            ->whereNotIn('id', $dismissedMaintenanceIds)
             ->orderBy('date_started', 'asc')
             ->get()
-            ->map(function (VehicleMaintenance $record) {
+            ->map(function (VehicleMaintenance $record) use ($readMaint) {
                 return [
                     'type' => 'maintenance_record',
+                    'read' => in_array($record->id, $readMaint),
                     'id' => $record->id,
                     'vehicle_id' => $record->vehicle_id,
                     'plate_number' => $record->vehicle->plate_number ?? 'N/A',
@@ -379,9 +404,55 @@ class VehicleMaintenanceController extends Controller
             'oil_change_count' => $oilChange->count(),
             'maintenance_count' => $maintenance->count(),
             'total_count' => $oilChange->count() + $maintenance->count(),
+            'unread_count' => $oilChange->where('read', false)->count() + $maintenance->where('read', false)->count(),
             'oil_change' => $oilChange,
             'maintenance' => $maintenance,
         ]);
+    }
+
+    /**
+     * Admin marks a notification as read. The item stays in Maintenance Needed,
+     * and only the bell count goes down.
+     */
+    public function markRead(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'type' => 'required|in:oil_change,maintenance_record',
+            'id' => 'required|integer',
+        ]);
+
+        NotificationRead::firstOrCreate(
+            ['user_id' => auth()->id(), 'type' => $data['type'], 'ref_id' => $data['id']],
+            ['read_at' => now()]
+        );
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Admin removes a work-order notification from their bell / Maintenance Needed.
+     * The work order itself is not changed.
+     */
+    public function dismissNotification(VehicleMaintenance $vehicleMaintenance): JsonResponse
+    {
+        DismissedMaintenanceNotification::firstOrCreate([
+            'user_id' => auth()->id(),
+            'vehicle_maintenance_id' => $vehicleMaintenance->id,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Notification removed']);
+    }
+
+    /**
+     * Undo a removal so the work order shows up in the bell again.
+     */
+    public function restoreNotification(VehicleMaintenance $vehicleMaintenance): JsonResponse
+    {
+        DismissedMaintenanceNotification::where('user_id', auth()->id())
+            ->where('vehicle_maintenance_id', $vehicleMaintenance->id)
+            ->delete();
+
+        return response()->json(['success' => true, 'message' => 'Notification restored']);
     }
 
     /**

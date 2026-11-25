@@ -64,7 +64,8 @@ class EmployeeTripTicketController extends Controller
                              $orQuery->whereHas('itinerary', function ($itineraryQuery) use ($travelOrderIds) {
                                  $itineraryQuery->where(function ($itoQuery) use ($travelOrderIds) {
                                      foreach ($travelOrderIds as $toId) {
-                                         $itoQuery->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [$toId]);
+                                         $itoQuery->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [json_encode((int) $toId)])
+                                         ->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [json_encode((string) $toId)]);
                                      }
                                  });
                              });
@@ -88,7 +89,8 @@ class EmployeeTripTicketController extends Controller
                     if ($travelOrderIds->isNotEmpty()) {
                         $itineraryQuery->where(function ($itoQuery) use ($travelOrderIds) {
                             foreach ($travelOrderIds as $toId) {
-                                $itoQuery->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [$toId]);
+                                $itoQuery->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [json_encode((int) $toId)])
+                                         ->orWhereRaw('JSON_CONTAINS(travel_order_id, ?)', [json_encode((string) $toId)]);
                             }
                         });
                     }

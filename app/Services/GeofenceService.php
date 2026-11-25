@@ -79,6 +79,12 @@ class GeofenceService
     |--------------------------------------------------------------------------
     */
 
+    /** How close (meters) the GPS must be to count as at the Motorpool Gate. Set CLSU_MOTORPOOL_GATE_RADIUS in .env. */
+    public static function motorpoolGateRadiusMeters(): float
+    {
+        return (float) env('CLSU_MOTORPOOL_GATE_RADIUS', self::MOTORPOOL_GATE_RADIUS_METERS);
+    }
+
     public static function motorpoolGateLatitude(): float
     {
         return (float) env(
@@ -101,6 +107,12 @@ class GeofenceService
     | MAIN GATE COORDINATES
     |--------------------------------------------------------------------------
     */
+
+    /** How close (meters) the GPS must be to count as at the CLSU Main Gate. Set CLSU_MAIN_GATE_RADIUS in .env. */
+    public static function mainGateRadiusMeters(): float
+    {
+        return (float) env('CLSU_MAIN_GATE_RADIUS', self::MAIN_GATE_RADIUS_METERS);
+    }
 
     public static function mainGateLatitude(): float
     {
@@ -255,6 +267,6 @@ class GeofenceService
             self::mainGateLongitude()
         );
 
-        return $distance <= self::MAIN_GATE_RADIUS_METERS;
+        return $distance <= self::mainGateRadiusMeters();
     }
 }

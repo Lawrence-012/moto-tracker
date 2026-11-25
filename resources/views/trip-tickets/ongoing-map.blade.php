@@ -1,8 +1,9 @@
 @extends('layouts.motorpool-admin')
 
 @section('content')
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.maps.api_key') }}"></script>
-<script src="{{ asset('js/gmaps-helpers.js') }}"></script>
+{{-- Open-source map: Leaflet + OpenStreetMap tiles (no Google Maps key needed) --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
 
 {{--
     Layout notes:
@@ -21,8 +22,8 @@
 
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 flex-shrink-0">
         <div>
-            <h2 class="text-lg sm:text-2xl font-bold" style="color: #1e6031;">Driver Monitoring</h2>
-            <p class="text-xs sm:text-sm text-gray-500 mt-1">Monitor drivers currently on approved trips, including the last known location when GPS sharing is turned off or unavailable.</p>
+            <h2 class="text-lg sm:text-2xl font-bold" style="color: #1e6031;">Vehicle Monitoring</h2>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1">Monitor vehicles with a registered dashcam, including the last known location when the dashcam is offline.</p>
         </div>
         <div class="flex items-center gap-2 text-xs text-gray-500 flex-shrink-0">
             <span id="live-indicator" class="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800">
@@ -32,7 +33,7 @@
         </div>
     </div>
 
-    <div id="location-alerts" class="hidden mb-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex-shrink-0">
+    <div id="location-alerts" class="hidden">
         <div class="flex items-start gap-3">
             <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
                 <i class="fas fa-location-slash"></i>
@@ -47,13 +48,13 @@
     <div class="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         <!-- Map: ~3/4 of the available space -->
         <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden min-h-[160px]" style="flex: 3 3 0%;">
-            <div id="fleet-map" class="w-full h-full"></div>
+            <div id="fleet-map" class="w-full h-full" style="position:relative; isolation:isolate; z-index:0;"></div>
         </div>
 
         <!-- Side panel: ~1/4 of the available space, split between the two lists -->
         <div class="flex flex-col gap-4 min-h-[240px]" style="flex: 1 1 0%;">
-            <!-- Trips on the road -->
-            <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
+            <!-- Trips on the road (hidden: vehicle monitoring only) -->
+            <div class="hidden bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
                 <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
                     <h3 class="font-semibold text-sm text-gray-700">Drivers on trip (<span id="ongoing-count">0</span>)</h3>
                 </div>
@@ -62,12 +63,35 @@
                 </div>
             </div>
 
-            <!-- Drivers on site: sharing location, not currently on a trip -->
-            <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
+            <!-- Drivers on site (hidden: vehicle monitoring only) -->
+            <div class="hidden bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
                 <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
                     <h3 class="font-semibold text-sm text-gray-700">Drivers on site (<span id="idle-count">0</span>)</h3>
                 </div>
                 <div id="idle-list" class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100">
+                    <div class="p-4 text-sm text-gray-400 text-center">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Vehicles with a registered dashcam: on trip -->
+            <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
+                <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
+                    <h3 class="font-semibold text-sm text-gray-700">On trip (<span id="dashcam-trip-count">0</span>)</h3>
+                    <button type="button" id="alert-sound-toggle" class="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50">
+                        Alert sound: on
+                    </button>
+                </div>
+                <div id="dashcam-trip-list" class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100">
+                    <div class="p-4 text-sm text-gray-400 text-center">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Vehicles with a registered dashcam: not on trip -->
+            <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-[100px]" style="flex: 1 1 0%;">
+                <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+                    <h3 class="font-semibold text-sm text-gray-700">Not on trip (<span id="dashcam-free-count">0</span>)</h3>
+                </div>
+                <div id="dashcam-free-list" class="flex-1 min-h-0 overflow-y-auto divide-y divide-gray-100">
                     <div class="p-4 text-sm text-gray-400 text-center">Loading...</div>
                 </div>
             </div>
@@ -76,16 +100,21 @@
 
     <div class="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800 flex-shrink-0">
         <i class="fas fa-info-circle mr-1"></i>
-        Driver positions are refreshed automatically. If a driver turns off location sharing or stops sending GPS updates during a trip,
-        the system keeps the <span class="font-semibold">last known location</span> on the map and alerts the admin.
+        Vehicle positions come from the dashcam in each vehicle. If a dashcam goes offline, the map keeps its
+        <span class="font-semibold">last known location</span>.
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const CLSU = { lat: {{ \App\Services\GeofenceService::CAMPUS_LAT }}, lng: {{ \App\Services\GeofenceService::CAMPUS_LNG }} };
+    const CLSU = [{{ \App\Services\GeofenceService::CAMPUS_LAT }}, {{ \App\Services\GeofenceService::CAMPUS_LNG }}];
 
-    const map = gmCreateMap('fleet-map', CLSU, 11);
+    // OpenStreetMap tiles through Leaflet (open source, no API key)
+    const map = L.map('fleet-map').setView(CLSU, 11);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
 
     // Google-Maps-style teardrop pin with a white inner circle and a
     // centered Material Icons glyph, rendered as an inline SVG data URI
@@ -97,11 +126,13 @@ document.addEventListener('DOMContentLoaded', function () {
             `<g transform="translate(11,11) scale(0.5)"><path d="${glyphPath}" fill="${color}"/></g>` +
             `</svg>`;
 
-        return {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-            scaledSize: new google.maps.Size(34, 44),
-            anchor: new google.maps.Point(17, 44),
-        };
+        return L.divIcon({
+            className: 'fleet-pin',
+            html: svg,
+            iconSize: [34, 44],
+            iconAnchor: [17, 44],
+            popupAnchor: [0, -40],
+        });
     }
 
     // Material Icons glyph paths (24x24 viewBox) - "directions_bus" and "person".
@@ -111,26 +142,102 @@ document.addEventListener('DOMContentLoaded', function () {
     // Motorpool Admin reference point (static - this is the office/campus
     // anchor, not a live-tracked person) - profile icon, distinct red so
     // it's never confused with a live driver/vehicle pin.
-    new google.maps.Marker({
-        position: CLSU,
-        map,
+    L.marker(CLSU, {
         icon: pinIcon(PERSON_GLYPH_PATH, '#dc3545'),
         title: 'Motorpool Admin (CLSU)',
-        zIndex: 1,
-    });
+        zIndexOffset: -100,
+    }).addTo(map);
 
     // Google Maps auto-detects its container's size via ResizeObserver, but
     // since this map sits inside a flex-based layout rather than a
     // fixed-height box, trigger a resize event as a safety net once the
     // surrounding layout has settled and again on every window resize
     // (sidebar toggle, orientation change, etc.)
-    setTimeout(() => google.maps.event.trigger(map, 'resize'), 150);
-    window.addEventListener('resize', () => google.maps.event.trigger(map, 'resize'));
+    setTimeout(() => map.invalidateSize(), 150);
+    window.addEventListener('resize', () => map.invalidateSize());
 
     let markers = {};
-    let markerInfoWindows = {};
     let idleMarkers = {};
-    let idleInfoWindows = {};
+    let dashcamMarkers = {};
+
+    // Moves a marker smoothly from where it is to the new position, instead of jumping
+    function animateMarkerTo(marker, to, duration = 4000) {
+        // Same target as before: keep the current animation, do not restart it
+        if (marker.__to && marker.__to.lat === to.lat && marker.__to.lng === to.lng) return;
+        marker.__to = { lat: to.lat, lng: to.lng };
+
+        if (marker.__raf) cancelAnimationFrame(marker.__raf);
+        const from = marker.getLatLng();
+        const dist = map.distance(from, [to.lat, to.lng]);
+        if (dist < 1) return; // no visible change
+        const start = performance.now();
+        const step = now => {
+            const t = Math.min(1, (now - start) / duration);
+            marker.setLatLng([
+                from.lat + (to.lat - from.lat) * t,
+                from.lng + (to.lng - from.lng) * t,
+            ]);
+            if (t < 1) marker.__raf = requestAnimationFrame(step);
+            else marker.__raf = null;
+        };
+        marker.__raf = requestAnimationFrame(step);
+    }
+
+    // Alert sound is ON by default. Browsers block sound until the page gets a click or key press,
+    // so sound is unlocked on the first interaction. Any alert before that plays right after it.
+    let alertSoundOn = true;
+    let alertAudioCtx = null;
+    let alertBeepPending = false;
+
+    function unlockAlertAudio() {
+        try {
+            if (!alertAudioCtx) alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (alertAudioCtx.state === 'suspended') alertAudioCtx.resume();
+            if (alertBeepPending) {
+                alertBeepPending = false;
+                playAlertBeep();
+            }
+        } catch (e) {
+            // Sound not available on this browser
+        }
+    }
+    ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
+        document.addEventListener(ev, unlockAlertAudio, { passive: true })
+    );
+
+    function playAlertBeep() {
+        if (!alertSoundOn) return;
+        try {
+            if (!alertAudioCtx) alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (alertAudioCtx.state === 'suspended') {
+                alertBeepPending = true; // plays on the next click or key press
+                return;
+            }
+            const ctx = alertAudioCtx;
+            [0, 0.4, 0.8].forEach(t => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.value = 880;
+                gain.gain.value = 0.25;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(ctx.currentTime + t);
+                osc.stop(ctx.currentTime + t + 0.25);
+            });
+        } catch (e) {
+            // Sound not available on this browser
+        }
+    }
+
+    document.getElementById('alert-sound-toggle').addEventListener('click', function () {
+        alertSoundOn = !alertSoundOn;
+        this.textContent = 'Alert sound: ' + (alertSoundOn ? 'on' : 'off');
+        unlockAlertAudio();
+        // Confirmation beep when turned on, so the sound can be checked without waiting for an alert
+        if (alertSoundOn) {
+            setTimeout(playAlertBeep, 150);
+        }
+    });
 
     function timeAgo(iso) {
         if (!iso) return 'no signal yet';
@@ -160,6 +267,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Drivers on site use a distinct blue pin so they're never confused
     // with an actual moving trip on the map.
+    // Dashcam-tracked vehicles: green when online, grey when the dashcam has gone quiet
+    function dashcamIcon(online) {
+        return pinIcon(BUS_GLYPH_PATH, online ? '#16a34a' : '#9ca3af');
+    }
+
     function idleDriverIcon(isLive) {
         return pinIcon(BUS_GLYPH_PATH, isLive ? '#2563eb' : '#9ca3af');
     }
@@ -176,7 +288,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const seenIds = [];
 
-                const alerts = Array.isArray(data.location_alerts) ? data.location_alerts : [];
+                // Driver location alerts are off: location now comes from the dashcam only
+                const alerts = [];
                 const alertBox = document.getElementById('location-alerts');
                 const alertList = document.getElementById('location-alert-list');
                 const currentAlertKeys = alerts.map(alert => `${alert.trip_ticket_id}:${alert.status}`).sort();
@@ -232,16 +345,16 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ${trip.location_status === 'signal_lost' ? '<br><span style="color:#d97706;font-weight:600;">GPS signal lost — showing last location</span>' : ''}
                                 ${trip.auto_started ? '<br><span style="color:#b45309;">Auto-started</span>' : ''}
                             </div>`;
-                        const position = { lat: trip.latitude, lng: trip.longitude };
+                        const position = [trip.latitude, trip.longitude];
 
                         if (markers[trip.trip_ticket_id]) {
-                            markers[trip.trip_ticket_id].setPosition(position);
+                            markers[trip.trip_ticket_id].setLatLng(position);
                             markers[trip.trip_ticket_id].setIcon(vehicleIcon(trip.location_status));
-                            markerInfoWindows[trip.trip_ticket_id].setContent(popupHtml);
+                            markers[trip.trip_ticket_id].setPopupContent(popupHtml);
                         } else {
-                            const marker = new google.maps.Marker({ position, map, icon: vehicleIcon(trip.location_status) });
-                            markerInfoWindows[trip.trip_ticket_id] = gmBindInfoWindow(map, marker, popupHtml);
-                            markers[trip.trip_ticket_id] = marker;
+                            markers[trip.trip_ticket_id] = L.marker(position, { icon: vehicleIcon(trip.location_status) })
+                                .addTo(map)
+                                .bindPopup(popupHtml);
                         }
                     }
 
@@ -265,10 +378,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>`;
                     row.addEventListener('click', () => {
                         if (trip.latitude && trip.longitude) {
-                            map.setCenter({ lat: trip.latitude, lng: trip.longitude });
-                            map.setZoom(15);
+                            map.setView([trip.latitude, trip.longitude], 15);
                             if (markers[trip.trip_ticket_id]) {
-                                markerInfoWindows[trip.trip_ticket_id].open({ anchor: markers[trip.trip_ticket_id], map });
+                                markers[trip.trip_ticket_id].openPopup();
                             }
                         }
                     });
@@ -282,11 +394,136 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove markers for trips no longer ongoing
                 Object.keys(markers).forEach(id => {
                     if (!seenIds.includes(parseInt(id))) {
-                        markers[id].setMap(null);
+                        markers[id].remove();
                         delete markers[id];
-                        delete markerInfoWindows[id];
                     }
                 });
+
+                // --- Vehicles with a registered dashcam, split by trip status ---
+                const dashcams = Array.isArray(data.dashcams) ? data.dashcams : [];
+                const onTrip = dashcams.filter(d => d.trip);
+                const notOnTrip = dashcams.filter(d => !d.trip);
+                document.getElementById('dashcam-trip-count').textContent = onTrip.length;
+                document.getElementById('dashcam-free-count').textContent = notOnTrip.length;
+
+                // GPS status: live, stale (no fix for a while), or no fix yet
+                const gpsBadge = d => {
+                    if (!d.gps_at) return '<span class="text-gray-400">No GPS yet</span>';
+                    const ageMin = Math.floor((Date.now() - new Date(d.gps_at).getTime()) / 60000);
+                    return ageMin <= 3
+                        ? '<span class="text-green-700">GPS live</span>'
+                        : `<span class="text-amber-600">GPS stale · ${ageMin} min</span>`;
+                };
+
+                // Current speed from the dashcam's GPS. Starts at 0 and changes as the vehicle moves.
+                const currentSpeed = d => Math.round(d.speed_kph ?? 0) + ' km/h';
+
+                const dashcamStatus = d => {
+                    if (!d.online) return '<span class="text-gray-500">Offline</span>';
+                    return d.latitude != null
+                        ? '<span class="text-green-700">Online</span>'
+                        : '<span class="text-amber-600">Online · waiting for GPS</span>';
+                };
+
+                const renderDashcamItem = d => `
+                    <div class="p-3 cursor-pointer hover:bg-gray-50" data-dashcam-id="${d.dashcam_id}">
+                        <div class="font-semibold text-sm">${d.plate_number} <span class="text-xs font-normal text-gray-500">${d.vehicle}</span></div>
+                        <div class="text-xs mt-1">
+                            <span class="font-semibold">${currentSpeed(d)}</span> &middot; Odometer ${Number(d.odometer_km).toLocaleString()} km 
+                            &middot; ${dashcamStatus(d)} &middot; ${gpsBadge(d)}
+                        </div>
+                        ${d.trip ? `<div class="text-xs mt-1 text-sky-700 font-semibold">${d.trip.ticket_number}${d.trip.destination ? ' &rarr; ' + d.trip.destination : ''}</div>` : ''}
+                        ${d.trip && d.trip.driver ? `<div class="text-xs text-gray-500">Driver: ${d.trip.driver}</div>` : ''}
+                    </div>`;
+
+                const emptyText = msg => `<div class="p-4 text-sm text-gray-400 text-center">${msg}</div>`;
+                const tripList = document.getElementById('dashcam-trip-list');
+                const freeList = document.getElementById('dashcam-free-list');
+                tripList.innerHTML = onTrip.length ? onTrip.map(renderDashcamItem).join('') : emptyText('No vehicle is on a trip right now.');
+                freeList.innerHTML = notOnTrip.length ? notOnTrip.map(renderDashcamItem).join('') : emptyText('No vehicle outside a trip.');
+
+                [tripList, freeList].forEach(list => {
+                    list.querySelectorAll('[data-dashcam-id]').forEach(el => {
+                        el.addEventListener('click', () => {
+                            const marker = dashcamMarkers[el.dataset.dashcamId];
+                            if (marker) {
+                                map.setView(marker.getLatLng(), 15);
+                                marker.openPopup();
+                            } else {
+                                alert('This vehicle has no GPS location yet.');
+                            }
+                        });
+                    });
+                });
+
+                // Alert when a vehicle on a trip has stopped sending GPS
+                window.__gpsAlerted = window.__gpsAlerted || new Set();
+                const nowAlerts = new Set();
+                onTrip.forEach(d => {
+                    const stale = !d.gps_at || (Date.now() - new Date(d.gps_at).getTime()) / 60000 > 3;
+                    if (stale) nowAlerts.add(d.dashcam_id);
+                });
+                nowAlerts.forEach(id => {
+                    if (window.__gpsAlerted.has(id)) return;
+                    window.__gpsAlerted.add(id);
+                    const d = onTrip.find(x => x.dashcam_id === id);
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true, position: 'top-end', icon: 'warning',
+                            title: `${d.plate_number} on trip: no GPS signal`,
+                            text: 'The dashcam stopped sending location.',
+                            showConfirmButton: false, timer: 8000, timerProgressBar: true,
+                        });
+                    }
+                    playAlertBeep();
+                });
+                // Vehicles whose GPS came back are no longer alerted
+                [...window.__gpsAlerted].forEach(id => { if (!nowAlerts.has(id)) window.__gpsAlerted.delete(id); });
+
+                const seenDashcamIds = [];
+                dashcams.forEach(d => {
+                    if (d.latitude == null || d.longitude == null) return;
+                    seenDashcamIds.push(d.dashcam_id);
+
+                    const position = [d.latitude, d.longitude];
+                    const tripPopup = d.trip
+                        ? '<br><b>On trip ' + d.trip.ticket_number + '</b>' + (d.trip.destination ? ' &rarr; ' + d.trip.destination : '') + (d.trip.driver ? '<br>Driver: ' + d.trip.driver : '')
+                        : '<br>No active trip';
+                    const popupHtml = `
+                        <div style="min-width:180px">
+                            <strong>${d.plate_number}</strong><br>
+                            ${d.vehicle}<br>
+                            ${currentSpeed(d)} &middot; Odometer ${Number(d.odometer_km).toLocaleString()} km<br>
+                            ${timeAgo(d.last_update)}<br>${gpsBadge(d)}
+                            ${tripPopup}
+                            ${d.online ? '' : '<br><span style="color:#6b7280;font-weight:600;">Dashcam offline — last known location</span>'}
+                        </div>`;
+
+                    if (dashcamMarkers[d.dashcam_id]) {
+                        animateMarkerTo(dashcamMarkers[d.dashcam_id], { lat: d.latitude, lng: d.longitude });
+                        dashcamMarkers[d.dashcam_id].setIcon(dashcamIcon(d.online));
+                        dashcamMarkers[d.dashcam_id].setPopupContent(popupHtml);
+                    } else {
+                        dashcamMarkers[d.dashcam_id] = L.marker(position, { icon: dashcamIcon(d.online), title: d.plate_number })
+                            .addTo(map)
+                            .bindPopup(popupHtml);
+                    }
+                });
+
+                Object.keys(dashcamMarkers).forEach(id => {
+                    if (!seenDashcamIds.includes(parseInt(id))) {
+                        dashcamMarkers[id].remove();
+                        delete dashcamMarkers[id];
+                    }
+                });
+
+                // Opened from the Dashcams page ("View on map"): center on that vehicle once.
+                const focusId = new URLSearchParams(window.location.search).get('dashcam');
+                if (focusId && !window.__dashcamFocused && dashcamMarkers[focusId]) {
+                    window.__dashcamFocused = true;
+                    map.setView(dashcamMarkers[focusId].getLatLng(), 16);
+                    dashcamMarkers[focusId].openPopup();
+                }
 
                 // --- Drivers on site: sharing location, not currently on a trip ---
                 const idleList = document.getElementById('idle-list');
@@ -308,16 +545,16 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <span style="color:#2563eb;">On site &middot; not on a trip</span><br>
                                 ${timeAgo(driver.last_update)}
                             </div>`;
-                        const position = { lat: driver.latitude, lng: driver.longitude };
+                        const position = [driver.latitude, driver.longitude];
 
                         if (idleMarkers[driver.driver_id]) {
-                            idleMarkers[driver.driver_id].setPosition(position);
+                            idleMarkers[driver.driver_id].setLatLng(position);
                             idleMarkers[driver.driver_id].setIcon(idleDriverIcon(driver.is_live));
-                            idleInfoWindows[driver.driver_id].setContent(popupHtml);
+                            idleMarkers[driver.driver_id].setPopupContent(popupHtml);
                         } else {
-                            const marker = new google.maps.Marker({ position, map, icon: idleDriverIcon(driver.is_live) });
-                            idleInfoWindows[driver.driver_id] = gmBindInfoWindow(map, marker, popupHtml);
-                            idleMarkers[driver.driver_id] = marker;
+                            idleMarkers[driver.driver_id] = L.marker(position, { icon: idleDriverIcon(driver.is_live) })
+                                .addTo(map)
+                                .bindPopup(popupHtml);
                         }
                     }
 
@@ -333,10 +570,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>`;
                     row.addEventListener('click', () => {
                         if (driver.latitude && driver.longitude) {
-                            map.setCenter({ lat: driver.latitude, lng: driver.longitude });
-                            map.setZoom(15);
+                            map.setView([driver.latitude, driver.longitude], 15);
                             if (idleMarkers[driver.driver_id]) {
-                                idleInfoWindows[driver.driver_id].open({ anchor: idleMarkers[driver.driver_id], map });
+                                idleMarkers[driver.driver_id].openPopup();
                             }
                         }
                     });
@@ -346,20 +582,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Remove markers for drivers no longer on site
                 Object.keys(idleMarkers).forEach(id => {
                     if (!seenIdleIds.includes(parseInt(id))) {
-                        idleMarkers[id].setMap(null);
+                        idleMarkers[id].remove();
                         delete idleMarkers[id];
-                        delete idleInfoWindows[id];
                     }
                 });
             })
-            .catch(() => {
+            .catch(err => {
+                // Show the real error so it can be reported (also logged to the browser Console)
+                console.error('Vehicle Monitoring error:', err);
+                const msg = (err && err.message) ? err.message : String(err);
                 document.getElementById('live-indicator').className = 'inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-800';
                 document.getElementById('live-indicator').innerHTML = '<i class="fas fa-circle mr-1" style="font-size:6px;"></i> Offline';
+                document.getElementById('live-indicator').title = msg;
+                const note = document.getElementById('dashcam-trip-list');
+                if (note) note.innerHTML = '<div class="p-4 text-xs text-red-700">Error: ' + msg + '</div>';
             });
     }
 
     refresh();
-    setInterval(refresh, 15000);
+    setInterval(refresh, 5000);
 });
 
 // Ends an on-going trip (marks it Completed) with optional odometer readings.

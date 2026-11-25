@@ -13,6 +13,9 @@ class VehicleMaintenance extends Model
     protected $table = 'vehicle_maintenance';
     
     protected $fillable = [
+        'remarks',
+        'oil_interval_km',
+        'oil_interval_months',
         'vehicle_id',
         'date_started',
         'make_or_type',
@@ -117,5 +120,18 @@ class VehicleMaintenance extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    /**
+     * Open work orders this admin has NOT removed from their notifications.
+     */
+    public static function openCountNotDismissedBy(int $userId): int
+    {
+        $dismissedIds = DismissedMaintenanceNotification::where('user_id', $userId)
+            ->pluck('vehicle_maintenance_id');
+
+        return static::whereIn('status', ['Need Maintenance', 'Under Maintenance'])
+            ->whereNotIn('id', $dismissedIds)
+            ->count();
     }
 }
